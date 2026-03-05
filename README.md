@@ -2,145 +2,95 @@
 <img width="1200" height="475" alt="TailorTrip Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 
 # 🌏 TailorTrip
-### *Don’t just book. Optimize.*
+### *Don't just book. Optimize.*
 </div>
 
 ---
 
-## 🚀 Overview
-**TailorTrip** is an AI-powered **Smart Travel Optimizer** designed for Gen Z and Millennials in Indian metro cities. It acts as a decision engine that fills the gap between travel inspiration and booking. Unlike traditional OTAs that overwhelm users with countless listings, TailorTrip provides personalized, data-backed clarity on **where, when, and why** to travel.
+## 🌟 What is TailorTrip?
+**TailorTrip** is an AI-powered **Smart Travel Optimizer**. While other apps focus on selling you tickets, we focus on helping you make the right decision. 
 
-### ✨ Key Value Proposition
-- **It is NOT:** A full OTA, a hotel marketplace, or a generic itinerary builder.
-- **It IS:** A decision engine, an optimization layer, and a personalized travel clarity tool.
+Designed for the modern traveler, TailorTrip fills the gap between "I want to go somewhere" and "I've booked my flight." We provide the data-backed confidence you need to know **where** to go, **when** it's cheapest, and **if** it fits your budget.
 
----
-
-## 🎯 The Problem
-Young metro travelers suffer from **discovery fatigue** and **indecision**. They often fear overpaying or booking at the wrong time (weather/crowds). TailorTrip reduces this mental load by presenting clear trade-offs and intelligent timing guidance.
+### 🎯 The "Aha!" Moment
+Young travelers are often overwhelmed by choice. TailorTrip solves **Discovery Fatigue** by narrowing down thousands of options into a handful of "perfect fits" based on your current vibe.
 
 ---
 
-## 🛠️ MVP Features
-### 1. 🌈 Mood-Based Discovery
-Start your journey with a vibe, not a date. Select from moods like *“Need a reset”*, *“Adventure mode”*, or *“Workation vibe”* to see curated recommendations.
+## � Key Product Features (MVP)
 
-### 2. 🎴 Smart Destination Cards
-At-a-glance insights for every destination:
-- **Estimated Total Cost:** Transparency upfront.
-- **Timing Badges:** Cheapest Month, Crowd Indicator, and Weather Pattern.
-- **"Why this fits you":** AI-generated explanations justifying the recommendation.
+### 1. 🌈 Search by Mood
+Forget dates and destinations for a second. Start with how you want to feel:
+- *“Need a reset”* 🌿
+- *“Adventure mode”* 🧗
+- *“Workation vibe”* 💻
 
-### 3. 📊 Optimization Dashboard
-Deep dive into your trip before you commit:
-- **Cost Breakdown:** Travel, stay, and food estimates.
-- **Timing Insights:** Charts for cost trends and crowd calendars.
-- **Trade-Off Toggle:** Switch between *Cheapest*, *Least Crowded*, and *Balanced* views.
-- **Budget Fit Meter:** Optional salary-based affordability check.
+### 2. 🎴 Intelligence at a Glance
+Our destination cards don't just show pretty pictures. They show:
+- **Total Estimated Cost:** No hidden math.
+- **Smart Badges:** Know instantly if it's the cheapest month or if it'll be crowded.
+- **AI "Why":** Personalized reasons why this specific trip matches your mood.
 
-### 4. 📌 Save & Shortlist
-Keep track of your favorite optimized trips to compare later.
-
----
-
-## 💻 Tech Stack
-- **Frontend:** React 19, Vite, Tailwind CSS 4, Motion (Framer Motion)
-- **Backend:** Express, Node.js
-- **Database:** SQLite (Better-SQLite3)
-- **AI Integration:** Google Gemini (@google/genai)
-- **State Management/Routing:** React Router 7
+### 3. 📊 The Decision Dashboard
+Deep-dive into trip logistics without the headache:
+- **Cost Splits:** See exactly where your money goes (Stay vs. Travel vs. Food).
+- **Trade-Off Toggle:** Instantly compare the *Cheapest* vs. *Least Crowded* times to visit.
+- **Budget Fit:** Check if the trip fits your monthly income with a simple percentage.
 
 ---
 
-## ⚙️ Local Setup
+## �️ Developer & PM Quick Start
 
-### Prerequisites
-- [Node.js](https://nodejs.org/) (Latest LTS recommended)
-- [NPM](https://www.npmjs.com/)
+### ⚓ One-Time Git Setup
+If you are new to the repo, run these in your terminal to set up your identity:
 
-### ⚓ Git Configuration (Terminal)
-Before you start contributing, ensure your Git identity and credential helper are configured to avoid repeated login prompts.
-
-**1. Set your identity (Both Mac & Windows):**
+**Set Identity:**
 ```bash
 git config --global user.name "Your Name"
-git config --global user.email "youremail@example.com"
+```
+```bash
+git config --global user.email "email@example.com"
 ```
 
-**2. Configure Credential Helper:**
-- **On Mac:**
-  ```bash
-  git config --global credential.helper osxkeychain
-  ```
-- **On Windows:**
-  ```bash
-  git config --global credential.helper manager
-  ```
+### 🚀 Getting it Running
 
-### Installation Steps
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/aayush2095/tailor-trip.git
+   ```
+
+2. **Enter the directory:**
+   ```bash
    cd TailorTrip
    ```
 
-2. **Install dependencies:**
+3. **Install dependencies:**
    ```bash
    npm install
    ```
 
-3. **Configure Environment Variables:**
-   Create a `.env` file in the root directory:
+4. **Prepare environment file:**
    ```bash
    cp .env.example .env
    ```
-   Open `.env` and add your **Gemini API Key**:
-   ```env
-   VITE_GEMINI_API_KEY=your_api_key_here
-   ```
 
-4. **Run the development server:**
+5. **Launch the app:**
    ```bash
    npm run dev
    ```
-   The app will be available at `http://localhost:3000`.
+   *Visit [http://localhost:3000](http://localhost:3000)*
 
 ---
 
-## 🛠️ Project Setup & Developer Log
-To ensure a smooth transition from concept to code, the following s67E2-402Cteps were taken during the initial setup:
-
-### 1. Environment & Dependency Alignment
-- Initialized the project with a robust stack including **React 19** and **Vite**.
-- Installed core dependencies: `npm install`
-- Configured local environment variables for AI integration:
-  ```bash
-  cp .env.example .env
-  ```
-
-### 2. Documentation-First Approach
-Created a dedicated `docs/` directory to house architectural and product decisions:
-- `docs/prd/`: Contains the original MVP product requirements.
-- `docs/prompts/`: Stores high-clarity AI prompts (e.g., UI generation master prompts) to maintain design consistency.
-- `docs/screenshots/`: Reserved for capturing visual milestones.
-
-### 3. Git Workflow & Repository Hosting
-- Sanitized the project by ensuring sensitive data is ignored via `.gitignore`.
-- Initialized Local Git Repository: `git init`
-- Connected to GitHub: 
-  ```bash
-  git remote add origin https://github.com/aayush2095/tailor-trip
-  git push -u origin main
-  ```
-
----
-
-## 🗺️ Roadmap (Post-MVP)
-- **Phase 2:** Side-by-side comparison dashboard, behavioral personalization, and seasonal alerts.
-- **Phase 3:** Collaborative trip planning rooms, expense splitting, and AI-powered itinerary builders.
+## 🗺️ The Path Ahead
+- **Phase 1 (Now):** Mood discovery and data-backed optimization.
+- **Phase 2:** Side-by-side trip comparisons and seasonal "Price Drop" alerts.
+- **Phase 3:** Collaborative planning rooms and AI-powered day-by-day itineraries.
 
 ---
 
 <div align="center">
-  <sub>Built with ❤️ for the next generation of travelers.</sub>
+  <sub>Built for the next generation of travelers.</sub>
+  <br/>
+  <sup>View full documentation in the <code>/docs</code> folder.</sup>
 </div>
