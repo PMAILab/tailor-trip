@@ -58,10 +58,29 @@ Keep track of your favorite optimized trips to compare later.
 - [Node.js](https://nodejs.org/) (Latest LTS recommended)
 - [NPM](https://www.npmjs.com/)
 
+### ⚓ Git Configuration (Terminal)
+Before you start contributing, ensure your Git identity and credential helper are configured to avoid repeated login prompts.
+
+**1. Set your identity (Both Mac & Windows):**
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "youremail@example.com"
+```
+
+**2. Configure Credential Helper:**
+- **On Mac:**
+  ```bash
+  git config --global credential.helper osxkeychain
+  ```
+- **On Windows:**
+  ```bash
+  git config --global credential.helper manager
+  ```
+
 ### Installation Steps
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/aayush2095/tailor-trip.git
    cd TailorTrip
    ```
 
@@ -85,6 +104,34 @@ Keep track of your favorite optimized trips to compare later.
    npm run dev
    ```
    The app will be available at `http://localhost:3000`.
+
+---
+
+## 🛠️ Project Setup & Developer Log
+To ensure a smooth transition from concept to code, the following s67E2-402Cteps were taken during the initial setup:
+
+### 1. Environment & Dependency Alignment
+- Initialized the project with a robust stack including **React 19** and **Vite**.
+- Installed core dependencies: `npm install`
+- Configured local environment variables for AI integration:
+  ```bash
+  cp .env.example .env
+  ```
+
+### 2. Documentation-First Approach
+Created a dedicated `docs/` directory to house architectural and product decisions:
+- `docs/prd/`: Contains the original MVP product requirements.
+- `docs/prompts/`: Stores high-clarity AI prompts (e.g., UI generation master prompts) to maintain design consistency.
+- `docs/screenshots/`: Reserved for capturing visual milestones.
+
+### 3. Git Workflow & Repository Hosting
+- Sanitized the project by ensuring sensitive data is ignored via `.gitignore`.
+- Initialized Local Git Repository: `git init`
+- Connected to GitHub: 
+  ```bash
+  git remote add origin https://github.com/aayush2095/tailor-trip
+  git push -u origin main
+  ```
 
 ---
 
