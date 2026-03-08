@@ -56,7 +56,7 @@ git config --global user.email "email@example.com"
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/aayush2095/tailor-trip.git
+   git clone https://github.com/PMAILab/tailor-trip.git
    ```
 
 2. **Enter the directory:**
