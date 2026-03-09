@@ -1,122 +1,137 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Trash2, ExternalLink, Calendar, Users, MapPin, Clock } from 'lucide-react';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import { Heart, Sparkles } from 'lucide-react';
+import { useMood } from '../state/MoodContext';
+import DestinationCard from '../components/DestinationCard';
+import UndoToast from '../components/UndoToast';
+
+interface PendingRemoval {
+  id: string;
+  name: string;
+}
 
 export default function Shortlist() {
+  const { recommendations, savedDestinationIds, toggleSaveDestination } = useMood();
+  const navigate = useNavigate();
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
+
+  const savedDestinations = recommendations.filter(d => savedDestinationIds.has(d.id));
+
+  const handleToggleSave = useCallback((id: string) => {
+    const destination = recommendations.find(d => d.id === id);
+    if (!destination) return;
+
+    // Remove the destination
+    toggleSaveDestination(id);
+    // Show undo toast
+    setPendingRemoval({ id, name: destination.name });
+  }, [recommendations, toggleSaveDestination]);
+
+  const handleUndo = useCallback(() => {
+    if (pendingRemoval) {
+      toggleSaveDestination(pendingRemoval.id);
+      setPendingRemoval(null);
+    }
+  }, [pendingRemoval, toggleSaveDestination]);
+
+  const handleDismissToast = useCallback(() => {
+    setPendingRemoval(null);
+  }, []);
+
+  if (savedDestinations.length === 0 && !pendingRemoval) {
+    return (
+      <div className="flex-grow w-full max-w-[1200px] mx-auto px-6 py-12">
+        <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Your Shortlist</h1>
+        <p className="text-slate-500 text-lg mb-16">Trips you're considering for your next escape.</p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="flex flex-col items-center justify-center py-20 gap-6 text-center"
+        >
+          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-2">
+            <Heart className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900">Nothing saved yet</h2>
+          <p className="text-slate-500 max-w-md">
+            Tap the heart icon on any destination card to save it here for later.
+          </p>
+          <button
+            onClick={() => navigate('/explore')}
+            className="bg-primary hover:bg-primary-hover text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-md shadow-blue-200 flex items-center gap-2"
+          >
+            <Sparkles className="w-5 h-5" />
+            Explore Destinations
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-grow w-full max-w-[1200px] mx-auto px-6 py-12">
       <div className="flex items-center justify-between mb-10">
         <div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Your Shortlist</h1>
-          <p className="text-slate-500 text-lg">Trips you're considering for your next escape.</p>
+          <p className="text-slate-500 text-lg">
+            {savedDestinations.length} trip{savedDestinations.length !== 1 ? 's' : ''} saved for your
+            next escape.
+          </p>
         </div>
-        
-        <Link to="/compare" className="hidden sm:flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-sm shadow-blue-200">
+
+        <Link
+          to="/compare"
+          className="hidden sm:flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-sm shadow-blue-200"
+        >
           Compare Selected
         </Link>
       </div>
 
-      <div className="space-y-6">
-        <ShortlistCard 
-          id="bali"
-          title="Bali Escape"
-          location="Ubud & Seminyak, Indonesia"
-          img="https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&q=80&w=2038&ixlib=rb-4.0.3"
-          cost="$1,000"
-          duration="5 Days"
-          match="94%"
-          tags={["Chill beach vibe", "Under $1000", "Nature"]}
-          selected={true}
-        />
-        
-        <ShortlistCard 
-          id="kyoto"
-          title="Kyoto Zen"
-          location="Kyoto, Japan"
-          img="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&q=80&w=2070&ixlib=rb-4.0.3"
-          cost="$1,800"
-          duration="7 Days"
-          match="88%"
-          tags={["Culture", "Temples", "Food"]}
-          selected={true}
-        />
-        
-        <ShortlistCard 
-          id="tulum"
-          title="Tulum Wellness"
-          location="Quintana Roo, Mexico"
-          img="https://images.unsplash.com/photo-1518638150340-f706e86654de?auto=format&fit=crop&q=80&w=2067&ixlib=rb-4.0.3"
-          cost="$1,200"
-          duration="4 Days"
-          match="82%"
-          tags={["Yoga", "Beaches", "Nightlife"]}
-          selected={false}
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+        <AnimatePresence mode="popLayout">
+          {savedDestinations.map((destination, i) => (
+            <motion.div
+              key={destination.id}
+              layout
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85, y: 15 }}
+              transition={{ duration: 0.35, ease: 'easeInOut' }}
+            >
+              <DestinationCard
+                destination={destination}
+                index={i}
+                onToggleSave={handleToggleSave}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
 
-      <div className="mt-12 text-center sm:hidden">
-        <Link to="/compare" className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold py-4 px-8 rounded-xl transition-colors shadow-md shadow-blue-200 w-full justify-center">
-          Compare Selected (2)
-        </Link>
-      </div>
-    </div>
-  );
-}
+      {savedDestinations.length > 0 && (
+        <div className="mt-12 text-center sm:hidden">
+          <Link
+            to="/compare"
+            className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold py-4 px-8 rounded-xl transition-colors shadow-md shadow-blue-200 w-full justify-center"
+          >
+            Compare Selected ({savedDestinations.length})
+          </Link>
+        </div>
+      )}
 
-function ShortlistCard({ id, title, location, img, cost, duration, match, tags, selected }: any) {
-  return (
-    <div className={`bg-white rounded-2xl p-4 sm:p-6 border transition-all duration-300 flex flex-col sm:flex-row gap-6 items-start sm:items-center relative group ${selected ? 'border-primary shadow-[0_8px_30px_rgb(0,0,0,0.08)]' : 'border-gray-200 shadow-sm hover:border-primary/50'}`}>
-      
-      <div className="absolute top-4 left-4 z-10 sm:static">
-        <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center cursor-pointer transition-colors ${selected ? 'bg-primary border-primary' : 'bg-white border-gray-300 group-hover:border-primary'}`}>
-          {selected && <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-        </div>
-      </div>
-
-      <Link to={`/trip/${id}`} className="w-full sm:w-48 h-48 sm:h-32 rounded-xl overflow-hidden shrink-0 relative block">
-        <img src={img} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
-        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md text-white text-xs font-bold px-2 py-1 rounded-md">
-          {match} Match
-        </div>
-      </Link>
-
-      <div className="flex-1 flex flex-col justify-between h-full w-full">
-        <div className="mb-4 sm:mb-0">
-          <div className="flex justify-between items-start mb-1">
-            <Link to={`/trip/${id}`} className="hover:text-primary transition-colors">
-              <h3 className="text-xl font-bold text-slate-900 leading-tight">{title}</h3>
-            </Link>
-            <div className="flex items-center gap-2">
-              <button className="text-slate-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          <p className="text-slate-500 text-sm flex items-center gap-1 mb-3">
-            <MapPin className="w-3.5 h-3.5" /> {location}
-          </p>
-          
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag: string, i: number) => (
-              <span key={i} className="bg-slate-100 text-slate-600 text-xs font-medium px-2.5 py-1 rounded-md">
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="w-full sm:w-auto flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-4 border-t sm:border-t-0 sm:border-l border-gray-100 pt-4 sm:pt-0 sm:pl-6 shrink-0">
-        <div className="text-left sm:text-right">
-          <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Est. Total</p>
-          <p className="text-2xl font-black text-slate-900">{cost}</p>
-        </div>
-        
-        <div className="flex items-center gap-2 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg">
-          <Clock className="w-4 h-4 text-primary" />
-          <span className="text-sm font-bold">{duration}</span>
-        </div>
-      </div>
+      <UndoToast
+        message={pendingRemoval ? `Removed ${pendingRemoval.name}` : ''}
+        visible={pendingRemoval !== null}
+        onUndo={handleUndo}
+        onDismiss={handleDismissToast}
+      />
     </div>
   );
 }

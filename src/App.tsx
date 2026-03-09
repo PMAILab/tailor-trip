@@ -12,21 +12,24 @@ import Shortlist from './pages/Shortlist';
 import Profile from './pages/Profile';
 import NoResults from './pages/NoResults';
 import Compare from './pages/Compare';
+import { MoodProvider } from './state/MoodContext';
 
 export default function App() {
   return (
-    <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/explore" element={<Explore />} />
-          <Route path="/trip/:id" element={<TripDetails />} />
-          <Route path="/shortlist" element={<Shortlist />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/no-results" element={<NoResults />} />
-          <Route path="/compare" element={<Compare />} />
-        </Routes>
-      </Layout>
-    </Router>
+    <MoodProvider>
+      <Router>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/explore" element={<Explore />} />
+            <Route path="/trip/:id" element={<TripDetails />} />
+            <Route path="/shortlist" element={<Shortlist />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/no-results" element={<NoResults />} />
+            <Route path="/compare" element={<Compare />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </MoodProvider>
   );
 }
