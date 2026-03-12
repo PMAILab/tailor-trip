@@ -97,3 +97,16 @@ export async function updateProfile(prefs: Partial<ProfileData>): Promise<{ succ
     body: JSON.stringify(prefs),
   });
 }
+
+// ─── Analytics ────────────────────────────────────────────────────────
+
+export async function logAnalyticsEvent(eventType: string, eventData?: Record<string, any>): Promise<{ success: boolean }> {
+  // Fire and forget
+  return fetchJSON<{ success: boolean }>('/analytics', {
+    method: 'POST',
+    body: JSON.stringify({ eventType, eventData }),
+  }).catch(err => {
+    console.error('Analytics error:', err);
+    return { success: false };
+  });
+}

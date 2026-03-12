@@ -6,6 +6,7 @@ import recommendationsRouter from './routes/recommendations';
 import tripsRouter from './routes/trips';
 import shortlistRouter from './routes/shortlist';
 import profileRouter from './routes/profile';
+import analyticsRouter from './routes/analytics';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use('/api/recommendations', recommendationsRouter);
 app.use('/api/trips', tripsRouter);
 app.use('/api/shortlist', shortlistRouter);
 app.use('/api/profile', profileRouter);
+app.use('/api/analytics', analyticsRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

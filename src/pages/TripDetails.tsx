@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Share2, Heart, Download, Calendar, MapPin, Clock, Sun, CloudRain, Plane, Hotel, Coffee, Map, Users, Info, ExternalLink, Snowflake, Droplets, TrendingDown, Scale } from 'lucide-react';
-import { getTripDetails, type TripDetailResponse } from '../lib/api';
+import { getTripDetails, logAnalyticsEvent, type TripDetailResponse } from '../lib/api';
 import { useApp } from '../state/AppContext';
 import type { TradeOffMode } from '../types/types';
 
@@ -367,15 +367,21 @@ export default function TripDetails() {
             <a 
               href={`https://www.makemytrip.com/holidays/india/search?dest=${dest.name}`}
               target="_blank" rel="noopener noreferrer"
-              onClick={() => console.log('Analytics Event: Outbound booking click')}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer mb-3"
+              onClick={() => logAnalyticsEvent('booking_outbound_click', { destinationId: dest.id, destinationName: dest.name })}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer mb-3 shadow-md"
             >
               View Booking Options <ExternalLink className="w-4 h-4 text-white/70" />
             </a>
 
-            <button disabled className="w-full bg-white hover:bg-gray-50 text-slate-400 font-bold py-3 rounded-xl transition-colors border border-gray-200 text-sm flex justify-center items-center gap-2 cursor-not-allowed">
+            <button disabled className="w-full bg-white hover:bg-gray-50 text-slate-400 font-bold py-3 rounded-xl transition-colors border border-gray-200 text-sm flex justify-center items-center gap-2 cursor-not-allowed mb-4">
               Compare Later (Coming Soon)
             </button>
+
+            <p className="text-center text-[11px] text-slate-400 mt-4 px-2">
+              <span className="block font-semibold mb-1">Disclaimer</span>
+              Prices are estimated and may vary based on actual travel dates, booking time, and availability. 
+              Clicking the booking link will take you to our partner site.
+            </p>
           </div>
         </div>
       </div>
