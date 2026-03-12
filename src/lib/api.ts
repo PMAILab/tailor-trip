@@ -58,6 +58,9 @@ export async function getTripDetails(
 interface ShortlistItem {
   destinationId: string;
   savedAt: string;
+  minCost: number;
+  cheapestMonth: string;
+  matchScore: number;
   destination: Destination;
 }
 

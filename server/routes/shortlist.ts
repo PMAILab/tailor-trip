@@ -14,20 +14,38 @@ router.get('/', (req: Request, res: Response) => {
       ORDER BY s.saved_at DESC
     `).all() as any[];
 
-    const trips = rows.map((r: any) => ({
-      destinationId: r.destination_id,
-      savedAt: r.saved_at,
-      destination: {
-        id: r.id,
-        name: r.name,
-        state: r.state,
-        heroImages: JSON.parse(r.hero_images),
-        sentiment: JSON.parse(r.sentiment),
-        description: r.description,
-        moods: JSON.parse(r.moods),
-        durationDays: r.duration_days,
-      },
-    }));
+    // Fetch monthly data for each
+    const trips = rows.map((r: any) => {
+      const monthlyRows = db.prepare('SELECT month, estimated_cost FROM monthly_data WHERE destination_id = ?').all(r.id) as any[];
+      
+      let minCost = 0;
+      let minCostMonth = 0;
+      if (monthlyRows.length > 0) {
+        minCost = Math.min(...monthlyRows.map(m => m.estimated_cost));
+        minCostMonth = monthlyRows.find(m => m.estimated_cost === minCost)?.month || 0;
+      }
+      
+      const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      return {
+        destinationId: r.destination_id,
+        savedAt: r.saved_at,
+        minCost: minCost,
+        cheapestMonth: MONTH_NAMES[minCostMonth],
+        // Mock match score for now, this would usually come from profile matching
+        matchScore: 90 + (r.id.length % 10), 
+        destination: {
+          id: r.id,
+          name: r.name,
+          state: r.state,
+          heroImages: JSON.parse(r.hero_images),
+          sentiment: JSON.parse(r.sentiment),
+          description: r.description,
+          moods: JSON.parse(r.moods),
+          durationDays: r.duration_days,
+        },
+      };
+    });
 
     res.json({ trips });
   } catch (err) {
