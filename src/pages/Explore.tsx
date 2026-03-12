@@ -16,6 +16,7 @@ export default function Explore() {
   const { isInShortlist, saveTripToShortlist, removeTripFromShortlist } = useApp();
 
   const moodId = searchParams.get('mood') || 'reset';
+  const q = searchParams.get('q') || '';
   const moodObj = MOODS.find(m => m.id === moodId);
 
   const [recommendations, setRecommendations] = useState<TripRecommendation[]>([]);
@@ -87,6 +88,7 @@ export default function Explore() {
           <p className="text-slate-500 text-sm">
             Based on your <span className="font-semibold text-primary">{moodObj?.label || 'selected'}</span> mood
             {selectedBudget && <> · <span className="font-semibold text-primary">{selectedBudget.label}</span></>}
+            {q && <> · <span className="font-semibold text-primary">Searching: "{q}"</span></>}
           </p>
         </div>
       </div>
@@ -128,7 +130,9 @@ export default function Explore() {
       {!loading && !error && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start">
           <AnimatePresence>
-            {recommendations.map((rec, index) => (
+            {recommendations
+              .filter(rec => q ? rec.destination.name.toLowerCase().includes(q.toLowerCase()) : true)
+              .map((rec, index) => (
               <TripCard
                 key={rec.destination.id}
                 rec={rec}

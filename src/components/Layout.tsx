@@ -1,10 +1,29 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Plane, Search, Plus, User, Bell } from 'lucide-react';
+import { useApp } from '../state/AppContext';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { shortlist } = useApp();
   const isHome = location.pathname === '/';
+  
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/explore?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  const navLinkClass = (path: string) => {
+    const isActive = location.pathname === path || (path === '/explore' && location.pathname.startsWith('/trip/'));
+    return `text-sm font-medium transition-colors relative ${
+      isActive ? 'text-primary font-bold' : 'text-slate-600 hover:text-primary'
+    }`;
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background-light text-text-main font-sans antialiased">
@@ -19,25 +38,44 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
           {!isHome && (
             <div className="flex-1 max-w-xl hidden md:block">
-              <div className="relative group">
+              <form onSubmit={handleSearch} className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="w-5 h-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 border-none rounded-xl bg-gray-100 text-sm focus:ring-2 focus:ring-primary focus:bg-white transition-all duration-200 placeholder-gray-500 font-medium outline-none"
-                  placeholder="Where do you want to go? (e.g. 'Chill beach vibes under 10k')"
+                  placeholder="Where do you want to go? (e.g. 'Kyoto', 'Bali')"
                 />
-              </div>
+              </form>
             </div>
           )}
 
           <div className="flex items-center gap-6">
             <nav className="hidden lg:flex items-center gap-6">
-              <Link to="/explore" className="text-sm font-medium text-slate-600 hover:text-primary transition-colors">Explore</Link>
-              <Link to="/shortlist" className="text-sm font-medium text-slate-600 hover:text-primary transition-colors">My Trips</Link>
-              <Link to="/compare" className="text-sm font-medium text-slate-600 hover:text-primary transition-colors">Compare</Link>
-              <Link to="/profile" className="text-sm font-medium text-slate-600 hover:text-primary transition-colors">Profile</Link>
+              <Link to="/explore" className={navLinkClass('/explore')}>
+                Explore
+                {location.pathname === '/explore' && <span className="absolute -bottom-6 left-0 right-0 h-0.5 bg-primary rounded-t-full"></span>}
+              </Link>
+              <Link to="/shortlist" className={navLinkClass('/shortlist')}>
+                My Trips
+                {shortlist.length > 0 && (
+                  <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center justify-center">
+                    {shortlist.length}
+                  </span>
+                )}
+                {location.pathname === '/shortlist' && <span className="absolute -bottom-6 left-0 right-0 h-0.5 bg-primary rounded-t-full"></span>}
+              </Link>
+              <Link to="/compare" className={navLinkClass('/compare')}>
+                Compare
+                {location.pathname === '/compare' && <span className="absolute -bottom-6 left-0 right-0 h-0.5 bg-primary rounded-t-full"></span>}
+              </Link>
+              <Link to="/profile" className={navLinkClass('/profile')}>
+                Profile
+                {location.pathname === '/profile' && <span className="absolute -bottom-6 left-0 right-0 h-0.5 bg-primary rounded-t-full"></span>}
+              </Link>
             </nav>
             <div className="h-6 w-px bg-gray-200 hidden lg:block"></div>
             <div className="flex items-center gap-4">
@@ -62,7 +100,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       <footer className="bg-white border-t border-gray-100 mt-auto py-8">
         <div className="max-w-[1440px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-slate-400 text-sm">© 2024 TailorTrip. AI-Powered Travel Decisions.</p>
+          <p className="text-slate-400 text-sm">© 2026 TailorTrip. AI-Powered Travel Decisions.</p>
           <div className="flex gap-6">
             <a href="#" className="text-slate-400 hover:text-primary text-sm transition-colors">Privacy Policy</a>
             <a href="#" className="text-slate-400 hover:text-primary text-sm transition-colors">Terms of Service</a>

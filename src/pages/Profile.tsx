@@ -1,8 +1,61 @@
-import React, { useState } from 'react';
-import { User, Settings, Shield, CreditCard, Bell, LogOut, Camera, MapPin, Calendar, Edit2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Settings, Shield, CreditCard, Bell, LogOut, Camera, MapPin, Edit2, Check, Loader2 } from 'lucide-react';
+import { getProfile, updateProfile } from '../lib/api';
+import { BUDGET_RANGES, MOODS } from '../data/constants';
+import type { BudgetRange } from '../types/types';
 
 export default function Profile() {
   const [activeTab, setActiveTab] = useState('preferences');
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [name, setName] = useState('Alex Rivera');
+  const [budget, setBudget] = useState<BudgetRange | null>(null);
+  const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      const data = await getProfile();
+      if (data.name) setName(data.name);
+      if (data.preferredBudgetRange) setBudget(data.preferredBudgetRange);
+      if (data.moods) setSelectedMoods(data.moods);
+    } catch (err) {
+      console.error('Failed to fetch profile', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      await updateProfile({
+        name,
+        preferredBudgetRange: budget,
+        moods: selectedMoods,
+      });
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Failed to update profile', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleMood = (moodId: string) => {
+    if (!isEditing) return;
+    setSelectedMoods(prev =>
+      prev.includes(moodId)
+        ? prev.filter(m => m !== moodId)
+        : [...prev, moodId]
+    );
+  };
 
   return (
     <div className="flex-grow w-full max-w-[1200px] mx-auto px-6 py-12 flex flex-col md:flex-row gap-8">
@@ -20,8 +73,18 @@ export default function Profile() {
               <Camera className="w-4 h-4" />
             </button>
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-1">Alex Rivera</h2>
-          <p className="text-slate-500 text-sm mb-4">alex.rivera@example.com</p>
+          
+          {isEditing ? (
+            <input 
+              type="text" 
+              value={name} 
+              onChange={e => setName(e.target.value)} 
+              className="text-xl font-bold text-slate-900 mb-1 text-center w-full border-b-2 border-primary outline-none focus:bg-blue-50 bg-transparent rounded"
+            />
+          ) : (
+            <h2 className="text-xl font-bold text-slate-900 mb-1">{name}</h2>
+          )}
+          <p className="text-slate-500 text-sm mb-4">hello@{name.toLowerCase().replace(/\s+/g, '')}.com</p>
           <div className="flex items-center justify-center gap-2 text-xs font-medium text-slate-600 bg-slate-50 py-1.5 px-3 rounded-full">
             <MapPin className="w-3.5 h-3.5 text-primary" /> San Francisco, CA
           </div>
@@ -44,67 +107,74 @@ export default function Profile() {
 
       {/* Main Content */}
       <main className="flex-1">
-        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
+        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm relative">
+          {loading && (
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-3xl">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
             <div>
               <h1 className="text-2xl font-black text-slate-900 mb-2">Travel Preferences</h1>
               <p className="text-slate-500">Customize your AI recommendations.</p>
             </div>
-            <button className="flex items-center gap-2 text-primary hover:text-primary-hover font-semibold text-sm transition-colors bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg">
-              <Edit2 className="w-4 h-4" /> Edit
-            </button>
+            {isEditing ? (
+              <button 
+                onClick={handleSave} 
+                disabled={saving}
+                className="flex items-center gap-2 text-white font-semibold text-sm transition-colors bg-primary hover:bg-primary-hover px-6 py-2 rounded-lg shadow-sm shadow-blue-200 cursor-pointer"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save
+              </button>
+            ) : (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-2 text-primary hover:text-primary-hover font-semibold text-sm transition-colors bg-blue-50 hover:bg-blue-100 px-6 py-2 rounded-lg cursor-pointer"
+              >
+                <Edit2 className="w-4 h-4" /> Edit Profile
+              </button>
+            )}
           </div>
 
           <div className="space-y-8">
             <section>
               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Core Vibe</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <PreferenceTag label="Nature" active />
-                <PreferenceTag label="Adventure" />
-                <PreferenceTag label="Culture" active />
-                <PreferenceTag label="Relaxation" active />
-                <PreferenceTag label="Nightlife" />
-                <PreferenceTag label="Foodie" active />
-                <PreferenceTag label="Luxury" />
-                <PreferenceTag label="Budget" active />
+              <div className="flex flex-wrap gap-3">
+                {MOODS.map(m => (
+                  <button 
+                    key={m.id}
+                    onClick={() => toggleMood(m.id)}
+                    disabled={!isEditing}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-medium text-center transition-all disabled:opacity-80 disabled:cursor-not-allowed cursor-pointer ${
+                      selectedMoods.includes(m.id) 
+                        ? 'bg-primary text-white shadow-sm' 
+                        : 'bg-white border border-gray-200 text-slate-600 hover:border-primary/50 hover:bg-blue-50'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
               </div>
             </section>
 
             <section>
               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Typical Budget</h3>
-              <div className="flex gap-4">
-                <button className="flex-1 py-3 px-4 rounded-xl border-2 border-primary bg-blue-50 text-primary font-bold transition-colors text-center">
-                  $ (&lt; $1000)
-                </button>
-                <button className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-slate-600 font-medium hover:border-gray-300 transition-colors text-center">
-                  $$ ($1k-$3k)
-                </button>
-                <button className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-slate-600 font-medium hover:border-gray-300 transition-colors text-center">
-                  $$$ ($3k+)
-                </button>
-              </div>
-            </section>
-
-            <section>
-              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Pace</h3>
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                <div className="flex justify-between text-sm font-medium text-slate-600 mb-4">
-                  <span>Slow & Chill</span>
-                  <span className="text-primary font-bold">Balanced</span>
-                  <span>Action-Packed</span>
-                </div>
-                <input type="range" min="1" max="3" defaultValue="2" className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary" />
-              </div>
-            </section>
-            
-            <section>
-              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Dietary Restrictions</h3>
-              <div className="flex flex-wrap gap-3">
-                <PreferenceTag label="Vegetarian" active />
-                <PreferenceTag label="Vegan" />
-                <PreferenceTag label="Gluten-Free" />
-                <PreferenceTag label="Halal" />
-                <PreferenceTag label="None" />
+              <div className="flex flex-col sm:flex-row gap-4">
+                {BUDGET_RANGES.map(b => (
+                  <button 
+                    key={b.id}
+                    onClick={() => isEditing && setBudget(b)}
+                    disabled={!isEditing}
+                    className={`flex-1 py-3 px-4 rounded-xl border-2 transition-colors text-center disabled:opacity-80 disabled:cursor-not-allowed cursor-pointer ${
+                      budget?.id === b.id 
+                        ? 'border-primary bg-blue-50 text-primary font-bold' 
+                        : 'border-gray-200 text-slate-600 font-medium hover:border-gray-300'
+                    }`}
+                  >
+                    {b.label}
+                  </button>
+                ))}
               </div>
             </section>
           </div>
@@ -114,22 +184,14 @@ export default function Profile() {
   );
 }
 
-function NavButton({ icon, label, active, onClick }: any) {
+function NavButton({ icon, label, active, onClick }: { icon: React.ReactElement, label: string, active: boolean, onClick: () => void }) {
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-colors ${active ? 'bg-primary text-white shadow-md shadow-blue-200' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+      className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-colors cursor-pointer ${active ? 'bg-primary text-white shadow-md shadow-blue-200' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
     >
       {React.cloneElement(icon, { className: 'w-5 h-5' })}
       {label}
     </button>
-  );
-}
-
-function PreferenceTag({ label, active }: { label: string, active?: boolean }) {
-  return (
-    <div className={`px-4 py-2.5 rounded-xl text-sm font-medium text-center cursor-pointer transition-all ${active ? 'bg-primary text-white shadow-sm' : 'bg-white border border-gray-200 text-slate-600 hover:border-primary/50 hover:bg-blue-50'}`}>
-      {label}
-    </div>
   );
 }
