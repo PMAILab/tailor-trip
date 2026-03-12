@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Share2, Heart, Download, Calendar, MapPin, Clock, Sun, CloudRain, Plane, Hotel, Coffee, Map, Users, Info, ExternalLink, Snowflake, Droplets, TrendingDown, Scale } from 'lucide-react';
-import { getTripDetails, logAnalyticsEvent, type TripDetailResponse } from '../lib/api';
+import { getTripDetails, type TripDetailResponse } from '../lib/api';
+import { trackEvent } from '../lib/analytics';
 import { useApp } from '../state/AppContext';
 import type { TradeOffMode } from '../types/types';
 import { ErrorState } from '../components/ErrorState';
@@ -163,19 +164,19 @@ export default function TripDetails() {
           {/* Trade-Off Toggle */}
           <div className="bg-white rounded-2xl p-2 border border-blue-100 shadow-sm inline-flex w-full md:w-auto overflow-hidden">
             <button 
-              onClick={() => setTradeOff('cheapest')}
+              onClick={() => { trackEvent('trade_off_toggled', { destinationId: dest.id, tradeOff: 'cheapest' }); setTradeOff('cheapest'); }}
               className={`flex-1 md:px-6 py-2.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${tradeOff === 'cheapest' ? 'bg-primary text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
             >
               <TrendingDown className="w-4 h-4" /> Cheapest
             </button>
             <button 
-              onClick={() => setTradeOff('balanced')}
+              onClick={() => { trackEvent('trade_off_toggled', { destinationId: dest.id, tradeOff: 'balanced' }); setTradeOff('balanced'); }}
               className={`flex-1 md:px-6 py-2.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${tradeOff === 'balanced' ? 'bg-primary text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
             >
               <Scale className="w-4 h-4" /> Balanced
             </button>
             <button 
-              onClick={() => setTradeOff('least_crowded')}
+              onClick={() => { trackEvent('trade_off_toggled', { destinationId: dest.id, tradeOff: 'least_crowded' }); setTradeOff('least_crowded'); }}
               className={`flex-1 md:px-6 py-2.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${tradeOff === 'least_crowded' ? 'bg-primary text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
             >
               <Users className="w-4 h-4" /> Quietest
@@ -368,7 +369,7 @@ export default function TripDetails() {
             <a 
               href={`https://www.makemytrip.com/holidays/india/search?dest=${dest.name}`}
               target="_blank" rel="noopener noreferrer"
-              onClick={() => logAnalyticsEvent('booking_outbound_click', { destinationId: dest.id, destinationName: dest.name })}
+              onClick={() => trackEvent('booking_outbound_click', { destinationId: dest.id, destinationName: dest.name })}
               className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer mb-3 shadow-md"
             >
               View Booking Options <ExternalLink className="w-4 h-4 text-white/70" />

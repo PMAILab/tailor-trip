@@ -3,6 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { MOODS } from '../data/constants';
 import { useApp } from '../state/AppContext';
+import { trackEvent } from '../lib/analytics';
 import type { Mood } from '../types/types';
 
 export default function Home() {
@@ -10,6 +11,7 @@ export default function Home() {
   const { setMood } = useApp();
 
   const handleMoodClick = (mood: Mood) => {
+    trackEvent('mood_selected', { moodId: mood.id, moodLabel: mood.label });
     setMood(mood);
     navigate(`/explore?mood=${mood.id}`);
   };

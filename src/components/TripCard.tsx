@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, Heart, Clock, Brain, Users } from 'lucide-react';
+import { trackEvent } from '../lib/analytics';
 import type { TripRecommendation } from '../types/types';
 
 interface TripCardProps {
@@ -28,10 +29,28 @@ export const TripCard: React.FC<TripCardProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   
   const dest = rec.destination;
   const cost = rec.costBreakdown;
   const timing = rec.timingInsight;
+
+  // Intersection Observer for tracking views
+  useEffect(() => {
+    if (!cardRef.current) return;
+    
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          trackEvent('card_viewed', { destinationId: dest.id, destinationName: dest.name });
+          observer.disconnect(); // only track once
+        }
+      });
+    }, { threshold: 0.5 });
+    
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [dest.id, dest.name]);
 
   // Filter images based on sentiment (optional extra logic, but we'll just use the heroImages array directly as they are assumed pre-filtered by the backend/DB)
   const images = dest.heroImages && dest.heroImages.length > 0 
@@ -53,6 +72,7 @@ export const TripCard: React.FC<TripCardProps> = ({
 
   return (
     <motion.article
+      ref={cardRef as any}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.05 }}
@@ -63,7 +83,11 @@ export const TripCard: React.FC<TripCardProps> = ({
       {/* Save Button */}
       <div className="absolute top-3 right-3 z-20">
         <button
-          onClick={(e) => { e.preventDefault(); isSaved ? onUnsave() : onSave(); }}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            trackEvent('save_clicked', { destinationId: dest.id, action: isSaved ? 'unsave' : 'save' });
+            isSaved ? onUnsave() : onSave(); 
+          }}
           className={`backdrop-blur-sm p-2 rounded-full shadow-sm transition-colors cursor-pointer ${
             isSaved
               ? 'bg-red-50 text-red-500'
@@ -136,7 +160,13 @@ export const TripCard: React.FC<TripCardProps> = ({
         {/* AI Reason */}
         <div className="mt-auto bg-slate-50 rounded-lg border border-slate-100">
           <button
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={() => {
+              if (!isOpen) {
+                trackEvent('explanation_opened', { destinationId: dest.id });
+                trackEvent('card_expanded', { destinationId: dest.id });
+              }
+              setIsOpen(!isOpen);
+            }}
             className="w-full flex items-center justify-between p-3 cursor-pointer select-none rounded-lg focus:outline-none"
           >
             <span className="text-xs font-semibold text-primary flex items-center gap-1">
