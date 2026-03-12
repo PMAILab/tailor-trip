@@ -5,6 +5,7 @@ import { ArrowLeft, Share2, Heart, Download, Calendar, MapPin, Clock, Sun, Cloud
 import { getTripDetails, logAnalyticsEvent, type TripDetailResponse } from '../lib/api';
 import { useApp } from '../state/AppContext';
 import type { TradeOffMode } from '../types/types';
+import { ErrorState } from '../components/ErrorState';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
