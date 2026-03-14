@@ -21,8 +21,11 @@ router.get('/', (req: Request, res: Response) => {
       let minCost = 0;
       let minCostMonth = 0;
       if (monthlyRows.length > 0) {
-        minCost = Math.min(...monthlyRows.map(m => m.estimated_cost));
-        minCostMonth = monthlyRows.find(m => m.estimated_cost === minCost)?.month || 0;
+        const accessibleMonths = monthlyRows.filter(m => m.estimated_cost > 0);
+        if (accessibleMonths.length > 0) {
+          minCost = Math.min(...accessibleMonths.map(m => m.estimated_cost));
+          minCostMonth = accessibleMonths.find(m => m.estimated_cost === minCost)?.month || 0;
+        }
       }
       
       const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

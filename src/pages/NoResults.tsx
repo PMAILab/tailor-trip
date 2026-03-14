@@ -31,23 +31,23 @@ export default function NoResults() {
           </h3>
           
           <div className="grid sm:grid-cols-2 gap-4">
-            <Link to="/trip/bali" className="group flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-primary/30 hover:bg-slate-50 transition-colors">
+            <Link to="/trip/goa" className="group flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-primary/30 hover:bg-slate-50 transition-colors">
               <div className="w-16 h-16 rounded-lg bg-gray-200 overflow-hidden shrink-0">
-                <img src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&q=80&w=200" alt="Bali" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                <img src="https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&q=80&w=200" alt="Goa" className="w-full h-full object-cover group-hover:scale-110 transition-transform" referrerPolicy="no-referrer" />
               </div>
               <div>
-                <p className="font-bold text-slate-900 group-hover:text-primary transition-colors">Bali, Indonesia</p>
-                <p className="text-xs text-slate-500">Perfect for escaping</p>
+                <p className="font-bold text-slate-900 group-hover:text-primary transition-colors">Goa</p>
+                <p className="text-xs text-slate-500">Beaches, nightlife & seafood</p>
               </div>
             </Link>
             
-            <Link to="/trip/kyoto" className="group flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-primary/30 hover:bg-slate-50 transition-colors">
+            <Link to="/trip/rishikesh" className="group flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-primary/30 hover:bg-slate-50 transition-colors">
               <div className="w-16 h-16 rounded-lg bg-gray-200 overflow-hidden shrink-0">
-                <img src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&q=80&w=200" alt="Kyoto" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                <img src="https://images.unsplash.com/photo-1605640840605-14ac1855827b?auto=format&fit=crop&q=80&w=200" alt="Rishikesh" className="w-full h-full object-cover group-hover:scale-110 transition-transform" referrerPolicy="no-referrer" />
               </div>
               <div>
-                <p className="font-bold text-slate-900 group-hover:text-primary transition-colors">Kyoto, Japan</p>
-                <p className="text-xs text-slate-500">Culture & Zen</p>
+                <p className="font-bold text-slate-900 group-hover:text-primary transition-colors">Rishikesh</p>
+                <p className="text-xs text-slate-500">Adventure & spirituality</p>
               </div>
             </Link>
           </div>

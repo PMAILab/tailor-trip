@@ -149,7 +149,7 @@ export default function TripDetails() {
               <Clock className="w-3.5 h-3.5" /> {dest.durationDays} Days
             </span>
             <span className="bg-white/20 backdrop-blur-md text-white border border-white/20 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 capitalize">
-              {dest.sentiment.split(' ')[0]} Vibe
+              {dest.sentiment[0]} Vibe
             </span>
           </div>
           <h1 className="text-4xl md:text-6xl font-black text-white mb-3 drop-shadow-md tracking-tight">{dest.name}</h1>
@@ -257,13 +257,13 @@ export default function TripDetails() {
                 <div className="min-w-[600px] flex items-end justify-between h-48 mb-8 pb-4 border-b border-gray-100 gap-2">
                   {dest.monthlyData.map((m, idx) => {
                     // normalized height calculation
-                    const prices = dest.monthlyData.map(d => d.costEstimate);
-                    const min = Math.min(...prices);
+                    const prices = dest.monthlyData.map(d => d.estimatedCost);
+                    const min = Math.min(...prices.filter(p => p > 0));
                     const max = Math.max(...prices);
-                    const isRecommended = recommendedMonth === idx;
+                    const isRecommended = recommendedMonth === m.month;
                     
                     // minimum height of 20% to avoid invisible bars
-                    const heightPercent = 20 + ((m.costEstimate - min) / (max - min)) * 80;
+                    const heightPercent = m.estimatedCost === 0 ? 0 : 20 + ((m.estimatedCost - min) / (max - min || 1)) * 80;
                     
                     return (
                       <div key={idx} className="flex flex-col items-center justify-end h-full gap-2 relative group flex-1">
@@ -276,7 +276,7 @@ export default function TripDetails() {
                         
                         {/* Tooltip on hover */}
                         <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-xs p-2 rounded whitespace-nowrap z-20 pointer-events-none">
-                          ₹{m.costEstimate.toLocaleString()}
+                          {m.estimatedCost === 0 ? 'Closed' : `₹${m.estimatedCost.toLocaleString()}`}
                         </div>
                         
                         <div className={`w-full max-w-[32px] rounded-t-md transition-all duration-500 ${isRecommended ? 'bg-primary' : 'bg-blue-100 group-hover:bg-blue-200'}`} style={{ height: `${heightPercent}%` }}></div>
@@ -331,7 +331,7 @@ export default function TripDetails() {
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 font-medium uppercase">Recommended Month</p>
-                  <p className="font-bold text-slate-900 text-sm">{MONTH_NAMES[recommendedMonth]} <span className="text-slate-400 font-normal">({tradeOff.replace('_', ' ')})</span></p>
+                  <p className="font-bold text-slate-900 text-sm">{MONTH_NAMES[recommendedMonth - 1]} <span className="text-slate-400 font-normal">({tradeOff.replace('_', ' ')})</span></p>
                 </div>
               </div>
               

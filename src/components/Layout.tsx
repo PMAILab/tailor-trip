@@ -14,7 +14,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/explore?q=${encodeURIComponent(searchQuery.trim())}`);
+      navigate(`/explore?mood=reset&q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
@@ -79,7 +79,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </nav>
             <div className="h-6 w-px bg-gray-200 hidden lg:block"></div>
             <div className="flex items-center gap-4">
-              <button className="bg-primary hover:bg-primary-hover text-white text-sm font-semibold py-2 px-5 rounded-lg transition-colors shadow-sm shadow-blue-200 flex items-center gap-2">
+              <button 
+                onClick={() => navigate('/')}
+                className="bg-primary hover:bg-primary-hover text-white text-sm font-semibold py-2 px-5 rounded-lg transition-colors shadow-sm shadow-blue-200 flex items-center gap-2 cursor-pointer"
+              >
                 <Plus className="w-5 h-5" />
                 <span className="hidden sm:inline">Plan a Trip</span>
               </button>
