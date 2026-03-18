@@ -1,102 +1,69 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
 import { DESTINATIONS } from '../src/data/constants';
 
-const DB_PATH = path.join(process.cwd(), 'tailor-trip.db');
+dotenv.config();
 
-let db: Database.Database;
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-export function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    initTables();
-    seedIfEmpty();
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+/**
+ * Call once at server startup.
+ * Seeds the `destinations` and `monthly_data` tables if they are empty.
+ */
+export async function seedIfEmpty(): Promise<void> {
+  const { count, error } = await supabase
+    .from('destinations')
+    .select('*', { count: 'exact', head: true });
+
+  if (error) {
+    console.error('Supabase seed check error:', error.message);
+    return;
   }
-  return db;
-}
 
-function initTables(): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS destinations (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      state TEXT NOT NULL,
-      hero_images TEXT NOT NULL,
-      sentiment TEXT NOT NULL,
-      description TEXT NOT NULL,
-      moods TEXT NOT NULL,
-      duration_days INTEGER NOT NULL
-    );
+  if ((count ?? 0) > 0) {
+    console.log(`Destinations already seeded (${count} rows). Skipping.`);
+    return;
+  }
 
-    CREATE TABLE IF NOT EXISTS monthly_data (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      destination_id TEXT NOT NULL,
-      month INTEGER NOT NULL,
-      estimated_cost INTEGER NOT NULL,
-      crowd_level TEXT NOT NULL,
-      weather TEXT NOT NULL,
-      FOREIGN KEY (destination_id) REFERENCES destinations(id),
-      UNIQUE(destination_id, month)
-    );
+  console.log('Seeding destinations…');
 
-    CREATE TABLE IF NOT EXISTS user_preferences (
-      id TEXT PRIMARY KEY DEFAULT 'default',
-      name TEXT,
-      preferred_budget_range TEXT,
-      moods TEXT
-    );
+  // Insert destinations
+  const destRows = DESTINATIONS.map((d) => ({
+    id: d.id,
+    name: d.name,
+    state: d.state,
+    hero_images: JSON.stringify(d.heroImages),
+    sentiment: JSON.stringify(d.sentiment),
+    description: d.description,
+    moods: JSON.stringify(d.moods),
+    duration_days: d.durationDays,
+  }));
 
-    CREATE TABLE IF NOT EXISTS saved_trips (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      destination_id TEXT NOT NULL,
-      saved_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (destination_id) REFERENCES destinations(id),
-      UNIQUE(destination_id)
-    );
+  const { error: destErr } = await supabase.from('destinations').insert(destRows);
+  if (destErr) {
+    console.error('Failed to seed destinations:', destErr.message);
+    return;
+  }
 
-    CREATE TABLE IF NOT EXISTS analytics_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_type TEXT NOT NULL,
-      event_data TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-}
+  // Insert monthly data
+  const monthlyRows = DESTINATIONS.flatMap((d) =>
+    d.monthlyData.map((m) => ({
+      destination_id: d.id,
+      month: m.month,
+      estimated_cost: m.estimatedCost,
+      crowd_level: m.crowdLevel,
+      weather: m.weather,
+    }))
+  );
 
-function seedIfEmpty(): void {
-  const count = db.prepare('SELECT COUNT(*) as cnt FROM destinations').get() as { cnt: number };
-  if (count.cnt > 0) return;
+  const { error: monthErr } = await supabase.from('monthly_data').insert(monthlyRows);
+  if (monthErr) {
+    console.error('Failed to seed monthly_data:', monthErr.message);
+    return;
+  }
 
-  const insertDest = db.prepare(`
-    INSERT INTO destinations (id, name, state, hero_images, sentiment, description, moods, duration_days)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertMonthly = db.prepare(`
-    INSERT INTO monthly_data (destination_id, month, estimated_cost, crowd_level, weather)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-
-  const seedAll = db.transaction(() => {
-    for (const dest of DESTINATIONS) {
-      insertDest.run(
-        dest.id,
-        dest.name,
-        dest.state,
-        JSON.stringify(dest.heroImages),
-        JSON.stringify(dest.sentiment),
-        dest.description,
-        JSON.stringify(dest.moods),
-        dest.durationDays
-      );
-
-      for (const md of dest.monthlyData) {
-        insertMonthly.run(dest.id, md.month, md.estimatedCost, md.crowdLevel, md.weather);
-      }
-    }
-  });
-
-  seedAll();
   console.log(`Seeded ${DESTINATIONS.length} destinations with monthly data.`);
 }

@@ -1,22 +1,27 @@
 import { Router, type Request, type Response } from 'express';
-import { getDb } from '../db';
+import { supabase } from '../db';
 
 const router = Router();
 
 // GET /api/profile
-router.get('/', (req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
-    const db = getDb();
-    const row = db.prepare('SELECT * FROM user_preferences WHERE id = ?').get('default') as any;
+    const { data: row, error } = await supabase
+      .from('user_preferences')
+      .select('*')
+      .eq('id', 'default')
+      .single();
 
-    if (!row) {
+    if (error || !row) {
       res.json({ name: '', preferredBudgetRange: null, moods: [] });
       return;
     }
 
     res.json({
       name: row.name || '',
-      preferredBudgetRange: row.preferred_budget_range ? JSON.parse(row.preferred_budget_range) : null,
+      preferredBudgetRange: row.preferred_budget_range
+        ? JSON.parse(row.preferred_budget_range)
+        : null,
       moods: row.moods ? JSON.parse(row.moods) : [],
     });
   } catch (err) {
@@ -26,23 +31,23 @@ router.get('/', (req: Request, res: Response) => {
 });
 
 // POST /api/profile
-router.post('/', (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, preferredBudgetRange, moods } = req.body;
-    const db = getDb();
 
-    db.prepare(`
-      INSERT INTO user_preferences (id, name, preferred_budget_range, moods)
-      VALUES ('default', ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        name = excluded.name,
-        preferred_budget_range = excluded.preferred_budget_range,
-        moods = excluded.moods
-    `).run(
-      name || '',
-      preferredBudgetRange ? JSON.stringify(preferredBudgetRange) : null,
-      moods ? JSON.stringify(moods) : null
+    const { error } = await supabase.from('user_preferences').upsert(
+      {
+        id: 'default',
+        name: name || '',
+        preferred_budget_range: preferredBudgetRange
+          ? JSON.stringify(preferredBudgetRange)
+          : null,
+        moods: moods ? JSON.stringify(moods) : null,
+      },
+      { onConflict: 'id' }
     );
+
+    if (error) throw new Error(error.message);
 
     res.json({ success: true });
   } catch (err) {

@@ -1,8 +1,16 @@
 import { Router, type Request, type Response } from 'express';
-import { getDb } from '../db';
+import { supabase } from '../db';
 import { generateWhyThisFits } from '../services/gemini';
 import { MOODS } from '../../src/data/constants';
-import type { Destination, MonthlyData, CostBreakdown, TimingInsight, TripRecommendation, CrowdLevel, WeatherType } from '../../src/types/types';
+import type {
+  Destination,
+  MonthlyData,
+  CostBreakdown,
+  TimingInsight,
+  TripRecommendation,
+  CrowdLevel,
+  WeatherType,
+} from '../../src/types/types';
 
 const router = Router();
 
@@ -20,12 +28,17 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    const db = getDb();
-    const currentMonth = new Date().getMonth() + 1; // 1-12
+    const currentMonth = new Date().getMonth() + 1; // 1–12
 
-    // Get all destinations matching the mood
-    const allDests = db.prepare('SELECT * FROM destinations').all() as any[];
-    const matchedDests = allDests.filter((d: any) => {
+    // Fetch all destinations from Supabase
+    const { data: allDests, error: destErr } = await supabase
+      .from('destinations')
+      .select('*');
+
+    if (destErr) throw new Error(destErr.message);
+
+    // Filter by mood
+    const matchedDests = (allDests ?? []).filter((d: any) => {
       const moods: string[] = JSON.parse(d.moods);
       return moods.includes(mood);
     });
@@ -35,43 +48,47 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    // Build recommendations with scoring
+    // Build recommendations
     const recommendations: TripRecommendation[] = [];
 
     for (const row of matchedDests) {
       const dest = rowToDestination(row);
-      const monthlyRows = db.prepare(
-        'SELECT * FROM monthly_data WHERE destination_id = ? ORDER BY month'
-      ).all(dest.id) as any[];
 
-      const monthlyData: MonthlyData[] = monthlyRows.map((m: any) => ({
+      const { data: monthlyRows, error: mErr } = await supabase
+        .from('monthly_data')
+        .select('*')
+        .eq('destination_id', dest.id)
+        .order('month');
+
+      if (mErr) throw new Error(mErr.message);
+
+      const monthlyData: MonthlyData[] = (monthlyRows ?? []).map((m: any) => ({
         month: m.month,
         estimatedCost: m.estimated_cost,
         crowdLevel: m.crowd_level as CrowdLevel,
         weather: m.weather as WeatherType,
       }));
 
-      const currentMonthData = monthlyData.find(m => m.month === currentMonth);
+      const currentMonthData = monthlyData.find((m) => m.month === currentMonth);
       if (!currentMonthData) continue;
 
       // Budget filter
       if (budgetRange) {
-        if (currentMonthData.estimatedCost < budgetRange.min || currentMonthData.estimatedCost > budgetRange.max) {
-          continue;
-        }
+        if (
+          currentMonthData.estimatedCost < budgetRange.min ||
+          currentMonthData.estimatedCost > budgetRange.max
+        ) continue;
       }
 
-      // Skip destinations with 0 cost (inaccessible this month)
       if (currentMonthData.estimatedCost === 0) continue;
 
-      // Scoring
       const score = computeScore(currentMonthData, tradeOff, dest.moods, mood);
       const cheapestMonth = monthlyData
-        .filter(m => m.estimatedCost > 0)
-        .reduce((min, m) => m.estimatedCost < min.estimatedCost ? m : min, monthlyData[0]);
+        .filter((m) => m.estimatedCost > 0)
+        .reduce((min, m) => (m.estimatedCost < min.estimatedCost ? m : min), monthlyData[0]);
 
       const costBreakdown = estimateCostBreakdown(currentMonthData.estimatedCost);
-      const monthlyPrices = monthlyData.map(m => m.estimatedCost);
+      const monthlyPrices = monthlyData.map((m) => m.estimatedCost);
 
       const timingInsight: TimingInsight = {
         cheapestMonth: cheapestMonth.month,
@@ -80,7 +97,6 @@ router.post('/', async (req: Request, res: Response) => {
         monthlyPrices,
       };
 
-      // Badges
       const badges: string[] = [];
       if (currentMonthData.crowdLevel === 'Low') badges.push('Low Crowd');
       if (cheapestMonth.month === currentMonth) badges.push('Cheapest Now');
@@ -92,22 +108,23 @@ router.post('/', async (req: Request, res: Response) => {
         costBreakdown,
         timingInsight,
         matchScore: score,
-        aiReason: '', // filled below
+        aiReason: '',
         badges,
       });
     }
 
-    // Sort by score descending, take top 8
     recommendations.sort((a, b) => b.matchScore - a.matchScore);
     const topRecs = recommendations.slice(0, 8);
 
     // Generate AI reasons
-    const moodObj = MOODS.find(m => m.id === mood);
+    const moodObj = MOODS.find((m) => m.id === mood);
     const moodLabel = moodObj?.label || mood;
 
     await Promise.all(
       topRecs.map(async (rec) => {
-        const currentMonthData = rec.destination.monthlyData.find(m => m.month === currentMonth);
+        const currentMonthData = rec.destination.monthlyData.find(
+          (m) => m.month === currentMonth
+        );
         if (currentMonthData) {
           rec.aiReason = await generateWhyThisFits(rec.destination, moodLabel, currentMonthData);
         }
@@ -121,33 +138,27 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function computeScore(
   monthData: MonthlyData,
   tradeOff: string,
   destMoods: string[],
   selectedMood: string
 ): number {
-  // Budget score: lower cost = higher score (normalize against 20000 max)
-  const budgetScore = Math.max(0, 100 - (monthData.estimatedCost / 200));
-
-  // Crowd score
-  const crowdMap = { Low: 100, Medium: 60, High: 30 };
-  const crowdScore = crowdMap[monthData.crowdLevel] || 50;
-
-  // Weather score
-  const weatherMap = { Pleasant: 100, Cold: 60, Hot: 40, Rainy: 20 };
-  const weatherScore = weatherMap[monthData.weather] || 50;
-
-  // Mood match score
+  const budgetScore = Math.max(0, 100 - monthData.estimatedCost / 200);
+  const crowdMap: Record<string, number> = { Low: 100, Medium: 60, High: 30 };
+  const crowdScore = crowdMap[monthData.crowdLevel] ?? 50;
+  const weatherMap: Record<string, number> = { Pleasant: 100, Cold: 60, Hot: 40, Rainy: 20 };
+  const weatherScore = weatherMap[monthData.weather] ?? 50;
   const moodScore = destMoods.includes(selectedMood) ? 100 : 40;
 
-  // Weighted by trade-off
   switch (tradeOff) {
     case 'cheapest':
       return Math.round(budgetScore * 0.5 + crowdScore * 0.1 + weatherScore * 0.1 + moodScore * 0.3);
     case 'least_crowded':
       return Math.round(budgetScore * 0.1 + crowdScore * 0.5 + weatherScore * 0.1 + moodScore * 0.3);
-    default: // balanced
+    default:
       return Math.round(budgetScore * 0.25 + crowdScore * 0.25 + weatherScore * 0.2 + moodScore * 0.3);
   }
 }

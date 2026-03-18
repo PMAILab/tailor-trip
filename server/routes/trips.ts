@@ -1,17 +1,29 @@
 import { Router, type Request, type Response } from 'express';
-import { getDb } from '../db';
-import type { Destination, MonthlyData, CostBreakdown, TimingInsight, CrowdLevel, WeatherType } from '../../src/types/types';
+import { supabase } from '../db';
+import type {
+  Destination,
+  MonthlyData,
+  CostBreakdown,
+  TimingInsight,
+  CrowdLevel,
+  WeatherType,
+} from '../../src/types/types';
 
 const router = Router();
 
-router.get('/:id', (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const tradeOff = (req.query.tradeOff as string) || 'balanced';
-    const db = getDb();
 
-    const row = db.prepare('SELECT * FROM destinations WHERE id = ?').get(id) as any;
-    if (!row) {
+    // Fetch destination
+    const { data: row, error: destErr } = await supabase
+      .from('destinations')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (destErr || !row) {
       res.status(404).json({ error: 'Destination not found' });
       return;
     }
@@ -28,11 +40,16 @@ router.get('/:id', (req: Request, res: Response) => {
       monthlyData: [],
     };
 
-    const monthlyRows = db.prepare(
-      'SELECT * FROM monthly_data WHERE destination_id = ? ORDER BY month'
-    ).all(id) as any[];
+    // Fetch monthly data
+    const { data: monthlyRows, error: mErr } = await supabase
+      .from('monthly_data')
+      .select('*')
+      .eq('destination_id', id)
+      .order('month');
 
-    const monthlyData: MonthlyData[] = monthlyRows.map((m: any) => ({
+    if (mErr) throw new Error(mErr.message);
+
+    const monthlyData: MonthlyData[] = (monthlyRows ?? []).map((m: any) => ({
       month: m.month,
       estimatedCost: m.estimated_cost,
       crowdLevel: m.crowd_level as CrowdLevel,
@@ -42,26 +59,26 @@ router.get('/:id', (req: Request, res: Response) => {
     destination.monthlyData = monthlyData;
 
     const currentMonth = new Date().getMonth() + 1;
-    const currentMonthData = monthlyData.find(m => m.month === currentMonth) || monthlyData[0];
+    const currentMonthData = monthlyData.find((m) => m.month === currentMonth) ?? monthlyData[0];
 
-    // Find recommended month based on trade-off
-    const accessibleMonths = monthlyData.filter(m => m.estimatedCost > 0);
+    const accessibleMonths = monthlyData.filter((m) => m.estimatedCost > 0);
     let recommendedMonth: MonthlyData;
 
     if (tradeOff === 'cheapest') {
       recommendedMonth = accessibleMonths.reduce((min, m) =>
         m.estimatedCost < min.estimatedCost ? m : min, accessibleMonths[0]);
     } else if (tradeOff === 'least_crowded') {
-      const crowdOrder = { Low: 0, Medium: 1, High: 2 };
+      const crowdOrder: Record<string, number> = { Low: 0, Medium: 1, High: 2 };
       recommendedMonth = accessibleMonths.reduce((best, m) =>
         crowdOrder[m.crowdLevel] < crowdOrder[best.crowdLevel] ? m : best, accessibleMonths[0]);
     } else {
-      // Balanced: composite score
       recommendedMonth = accessibleMonths.reduce((best, m) => {
-        const score = (20000 - m.estimatedCost) / 200 +
+        const score =
+          (20000 - m.estimatedCost) / 200 +
           (m.crowdLevel === 'Low' ? 30 : m.crowdLevel === 'Medium' ? 15 : 0) +
           (m.weather === 'Pleasant' ? 20 : m.weather === 'Cold' ? 10 : 0);
-        const bestScore = (20000 - best.estimatedCost) / 200 +
+        const bestScore =
+          (20000 - best.estimatedCost) / 200 +
           (best.crowdLevel === 'Low' ? 30 : best.crowdLevel === 'Medium' ? 15 : 0) +
           (best.weather === 'Pleasant' ? 20 : best.weather === 'Cold' ? 10 : 0);
         return score > bestScore ? m : best;
@@ -84,7 +101,7 @@ router.get('/:id', (req: Request, res: Response) => {
       cheapestMonth: cheapestMonth.month,
       crowdLevel: currentMonthData.crowdLevel,
       weather: currentMonthData.weather,
-      monthlyPrices: monthlyData.map(m => m.estimatedCost),
+      monthlyPrices: monthlyData.map((m) => m.estimatedCost),
     };
 
     res.json({

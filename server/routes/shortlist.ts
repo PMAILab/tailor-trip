@@ -1,56 +1,70 @@
 import { Router, type Request, type Response } from 'express';
-import { getDb } from '../db';
+import { supabase } from '../db';
 
 const router = Router();
 
 // GET /api/shortlist
-router.get('/', (req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
-    const db = getDb();
-    const rows = db.prepare(`
-      SELECT s.destination_id, s.saved_at, d.*
-      FROM saved_trips s
-      JOIN destinations d ON d.id = s.destination_id
-      ORDER BY s.saved_at DESC
-    `).all() as any[];
+    // Fetch all saved trips with their destination details
+    const { data: savedRows, error: savedErr } = await supabase
+      .from('saved_trips')
+      .select('destination_id, saved_at')
+      .order('saved_at', { ascending: false });
 
-    // Fetch monthly data for each
-    const trips = rows.map((r: any) => {
-      const monthlyRows = db.prepare('SELECT month, estimated_cost FROM monthly_data WHERE destination_id = ?').all(r.id) as any[];
-      
-      let minCost = 0;
-      let minCostMonth = 0;
-      if (monthlyRows.length > 0) {
-        const accessibleMonths = monthlyRows.filter(m => m.estimated_cost > 0);
+    if (savedErr) throw new Error(savedErr.message);
+
+    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const trips = await Promise.all(
+      (savedRows ?? []).map(async (s: any) => {
+        const { data: dest, error: dErr } = await supabase
+          .from('destinations')
+          .select('*')
+          .eq('id', s.destination_id)
+          .single();
+
+        if (dErr || !dest) return null;
+
+        const { data: monthly, error: mErr } = await supabase
+          .from('monthly_data')
+          .select('month, estimated_cost')
+          .eq('destination_id', s.destination_id);
+
+        if (mErr) return null;
+
+        const accessibleMonths = (monthly ?? []).filter((m: any) => m.estimated_cost > 0);
+        let minCost = 0;
+        let minCostMonthIdx = 0;
+
         if (accessibleMonths.length > 0) {
-          minCost = Math.min(...accessibleMonths.map(m => m.estimated_cost));
-          minCostMonth = accessibleMonths.find(m => m.estimated_cost === minCost)?.month || 0;
+          const cheapest = accessibleMonths.reduce((min: any, m: any) =>
+            m.estimated_cost < min.estimated_cost ? m : min, accessibleMonths[0]);
+          minCost = cheapest.estimated_cost;
+          minCostMonthIdx = cheapest.month - 1; // 0-indexed for MONTH_NAMES
         }
-      }
-      
-      const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-      return {
-        destinationId: r.destination_id,
-        savedAt: r.saved_at,
-        minCost: minCost,
-        cheapestMonth: MONTH_NAMES[minCostMonth],
-        // Mock match score for now, this would usually come from profile matching
-        matchScore: 90 + (r.id.length % 10), 
-        destination: {
-          id: r.id,
-          name: r.name,
-          state: r.state,
-          heroImages: JSON.parse(r.hero_images),
-          sentiment: JSON.parse(r.sentiment),
-          description: r.description,
-          moods: JSON.parse(r.moods),
-          durationDays: r.duration_days,
-        },
-      };
-    });
+        return {
+          destinationId: s.destination_id,
+          savedAt: s.saved_at,
+          minCost,
+          cheapestMonth: MONTH_NAMES[minCostMonthIdx] ?? '',
+          matchScore: 90 + (dest.id.length % 10),
+          destination: {
+            id: dest.id,
+            name: dest.name,
+            state: dest.state,
+            heroImages: JSON.parse(dest.hero_images),
+            sentiment: JSON.parse(dest.sentiment),
+            description: dest.description,
+            moods: JSON.parse(dest.moods),
+            durationDays: dest.duration_days,
+          },
+        };
+      })
+    );
 
-    res.json({ trips });
+    res.json({ trips: trips.filter(Boolean) });
   } catch (err) {
     console.error('Shortlist GET error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -58,7 +72,7 @@ router.get('/', (req: Request, res: Response) => {
 });
 
 // POST /api/shortlist
-router.post('/', (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { destinationId } = req.body;
     if (!destinationId) {
@@ -66,16 +80,23 @@ router.post('/', (req: Request, res: Response) => {
       return;
     }
 
-    const db = getDb();
-    const dest = db.prepare('SELECT id FROM destinations WHERE id = ?').get(destinationId);
-    if (!dest) {
+    // Verify destination exists
+    const { data: dest, error: dErr } = await supabase
+      .from('destinations')
+      .select('id')
+      .eq('id', destinationId)
+      .single();
+
+    if (dErr || !dest) {
       res.status(404).json({ error: 'Destination not found' });
       return;
     }
 
-    db.prepare(
-      'INSERT OR IGNORE INTO saved_trips (destination_id) VALUES (?)'
-    ).run(destinationId);
+    const { error } = await supabase
+      .from('saved_trips')
+      .upsert({ destination_id: destinationId }, { onConflict: 'destination_id' });
+
+    if (error) throw new Error(error.message);
 
     res.json({ success: true });
   } catch (err) {
@@ -85,11 +106,16 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // DELETE /api/shortlist/:id
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const db = getDb();
-    db.prepare('DELETE FROM saved_trips WHERE destination_id = ?').run(id);
+    const { error } = await supabase
+      .from('saved_trips')
+      .delete()
+      .eq('destination_id', id);
+
+    if (error) throw new Error(error.message);
+
     res.json({ success: true });
   } catch (err) {
     console.error('Shortlist DELETE error:', err);
