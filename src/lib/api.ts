@@ -1,4 +1,10 @@
-import type { TripRecommendation, TradeOffMode } from '../types/types';
+import type {
+  TripRecommendation,
+  TradeOffMode,
+  Destination,
+  CostBreakdown,
+  TimingInsight,
+} from '../types/types';
 
 const BASE = '/api';
 
@@ -30,4 +36,23 @@ export function getRecommendations(params: {
     method: 'POST',
     body: JSON.stringify(params),
   });
+}
+
+// ─── Trip details ─────────────────────────────────────────────────────
+
+export interface TripOption {
+  month: number;
+  costBreakdown: CostBreakdown;
+  timingInsight: TimingInsight;
+}
+
+export interface TripDetailResponse {
+  destination: Destination;
+  options: { cheapest: TripOption; least_crowded: TripOption };
+  aiReason: string;
+  fallback?: boolean;
+}
+
+export function getTripDetails(id: string): Promise<TripDetailResponse> {
+  return fetchJSON<TripDetailResponse>(`/trips/${id}`);
 }
