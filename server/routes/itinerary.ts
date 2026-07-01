@@ -4,7 +4,7 @@ import { generateItineraryDay, type ItineraryDayInput } from '../services/gemini
 
 const router = Router();
 
-const MAX_DAYS = 5;
+const MAX_DAYS = 7;
 
 function budgetLabel(id: string | undefined): string {
   return BUDGET_RANGES.find((b) => b.id === id)?.label ?? 'a flexible budget';

@@ -77,11 +77,15 @@ export default function ItineraryView() {
     <div className="mx-auto w-full max-w-[1280px] px-margin-mobile py-12 pb-28 md:px-margin-desktop">
       <header className="mb-12 border-b border-outline-variant pb-8 text-center md:text-left">
         <h1 className="mb-3 font-display text-display-lg-mobile text-primary md:text-display-lg">
-          {inputs?.destination}
+          {inputs?.destination ?? 'Planning your trip'}
         </h1>
         <p className="text-body-lg text-on-surface-variant">
-          {days.length > 0 ? `${days.length} day${days.length > 1 ? 's' : ''}` : 'Planning'}
-          {partyLabel ? `, ${partyLabel.toLowerCase()}` : ''}
+          {generating && days.length === 0
+            ? 'Curating your itinerary…'
+            : days.length > 0
+              ? `${days.length} day${days.length > 1 ? 's' : ''}`
+              : 'Planning'}
+          {partyLabel && !generating ? `, ${partyLabel.toLowerCase()}` : ''}
         </p>
       </header>
 
@@ -99,9 +103,11 @@ export default function ItineraryView() {
 
         {generating && <DaySkeleton index={days.length + 1} />}
 
-        {isDraft && current.status === 'error' && days.length === 0 && (
-          <p className="text-body-md text-error">
-            Something interrupted the planning. Please head back and try again.
+        {isDraft && current.status === 'error' && (
+          <p className={`text-body-md text-error ${days.length > 0 ? 'mt-8 rounded-xl border border-error/30 bg-error/10 p-4' : ''}`}>
+            {days.length > 0
+              ? 'Planning was interrupted — some days may be missing. You can regenerate individual days above.'
+              : 'Something interrupted the planning. Please head back and try again.'}
           </p>
         )}
       </div>

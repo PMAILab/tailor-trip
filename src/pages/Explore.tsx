@@ -37,6 +37,8 @@ export default function Explore() {
   }, [load]);
 
   const moodLabel = selectedMood ? MOODS.find((m) => m.id === selectedMood)?.label : null;
+  const tradeOffLabel =
+    tradeOff === 'cheapest' ? 'sorted by price' : tradeOff === 'least_crowded' ? 'sorted by crowd' : null;
   const subtitle = moodLabel
     ? `Because you are in a ${moodLabel.toLowerCase()} mood`
     : 'A handpicked mix to get you started';
@@ -47,7 +49,8 @@ export default function Explore() {
         <h1 className="mb-2 font-display text-headline-md text-primary">Curated escapes</h1>
         <p className="text-body-md text-on-surface-variant">
           {subtitle}
-          {selectedBudget ? `, within ${selectedBudget.label.toLowerCase()}` : ''}.
+          {selectedBudget ? `, within ${selectedBudget.label.toLowerCase()}` : ''}
+          {tradeOffLabel ? `, ${tradeOffLabel}` : ''}.
         </p>
       </div>
 

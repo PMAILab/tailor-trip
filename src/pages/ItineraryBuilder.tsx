@@ -26,6 +26,7 @@ export default function ItineraryBuilder() {
   const [destination, setDestination] = useState(prefill?.name ?? '');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [dateError, setDateError] = useState('');
   const [partyType, setPartyType] = useState<PartyType>('couple');
   const [budget, setBudget] = useState<string>(selectedBudget?.id ?? '5k-10k');
   const [interests, setInterests] = useState<Interest[]>(['nature', 'food_cafes']);
@@ -36,7 +37,29 @@ export default function ItineraryBuilder() {
     setInterests((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  function handleStartDateChange(val: string) {
+    setStartDate(val);
+    setDateError('');
+    // If new start is after existing end, clear end to avoid invalid range.
+    if (endDate && val && val > endDate) {
+      setEndDate('');
+    }
+  }
+
+  function handleEndDateChange(val: string) {
+    if (startDate && val && val < startDate) {
+      setDateError('End date must be on or after the start date.');
+      return;
+    }
+    setDateError('');
+    setEndDate(val);
+  }
+
   function handleGenerate() {
+    if (startDate && endDate && endDate < startDate) {
+      setDateError('End date must be on or after the start date.');
+      return;
+    }
     const inputs: ItineraryInputs = {
       destination: destination.trim() || 'your destination',
       destinationId: prefill?.id,
@@ -86,13 +109,16 @@ export default function ItineraryBuilder() {
           <div className="grid grid-cols-2 gap-6">
             <label className="block">
               <span className="mb-2 block text-label-caps uppercase text-on-surface-variant">From</span>
-              <input className={inputClass} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <input className={inputClass} type="date" value={startDate} onChange={(e) => handleStartDateChange(e.target.value)} />
             </label>
             <label className="block">
               <span className="mb-2 block text-label-caps uppercase text-on-surface-variant">To</span>
-              <input className={inputClass} type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} />
+              <input className={inputClass} type="date" value={endDate} min={startDate || undefined} onChange={(e) => handleEndDateChange(e.target.value)} />
             </label>
           </div>
+          {dateError && (
+            <p className="-mt-4 text-body-sm text-error">{dateError}</p>
+          )}
 
           <div>
             <span className="mb-3 block text-label-caps uppercase text-on-surface-variant">Who is going</span>

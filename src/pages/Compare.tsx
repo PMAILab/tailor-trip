@@ -267,18 +267,20 @@ export default function Compare() {
       </div>
 
       {/* AI recommendation */}
-      <div className="mt-12 max-w-3xl rounded-xl border border-outline-variant bg-surface-container-low p-8">
-        <div className="mb-4 flex items-center gap-2">
-          <Icon name="auto_awesome" className="text-on-surface-variant" />
-          <span className="text-label-caps uppercase text-on-surface-variant">AI recommendation</span>
+      {selectedRecs.length >= 2 && (
+        <div className="mt-12 max-w-3xl rounded-xl border border-outline-variant bg-surface-container-low p-8">
+          <div className="mb-4 flex items-center gap-2">
+            <Icon name="auto_awesome" className="text-on-surface-variant" />
+            <span className="text-label-caps uppercase text-on-surface-variant">AI recommendation</span>
+          </div>
+          <p className="font-display text-headline-sm leading-relaxed text-primary">
+            {verdict}
+            {verdictLoading && (
+              <span className="ml-1 inline-block h-5 w-2 animate-pulse bg-primary align-middle" aria-hidden="true" />
+            )}
+          </p>
         </div>
-        <p className="font-display text-headline-sm leading-relaxed text-primary">
-          {verdict}
-          {verdictLoading && (
-            <span className="ml-1 inline-block h-5 w-2 animate-pulse bg-primary align-middle" aria-hidden="true" />
-          )}
-        </p>
-      </div>
+      )}
     </div>
   );
 }

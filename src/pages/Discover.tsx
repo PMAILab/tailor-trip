@@ -7,6 +7,7 @@ import Icon from '../components/Icon';
 import type { TradeOffMode } from '../types/types';
 
 const PRIORITIES: [TradeOffMode, string][] = [
+  ['balanced', 'Best overall'],
   ['least_crowded', 'Least crowded'],
   ['cheapest', 'Cheapest'],
 ];

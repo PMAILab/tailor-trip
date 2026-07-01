@@ -316,6 +316,8 @@ function fallbackDay(
     'Nature and slow moments',
     'Culture and local flavour',
     'A day at your own pace',
+    'Off the beaten path',
+    'Savour and unwind',
   ];
 
   return {

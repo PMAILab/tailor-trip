@@ -30,7 +30,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { requireAuth } = useAuth();
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [selectedBudget, setSelectedBudget] = useState<BudgetRange | null>(null);
-  const [tradeOff, setTradeOff] = useState<TradeOffMode>('least_crowded');
+  const [tradeOff, setTradeOff] = useState<TradeOffMode>('balanced');
   const [shortlist, setShortlist] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(SHORTLIST_KEY);
