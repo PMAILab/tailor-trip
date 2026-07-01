@@ -50,6 +50,11 @@ export default function Shortlist() {
           <p className="text-body-lg text-on-surface-variant">
             The trips you saved, ready for a closer look. Compare any two to decide.
           </p>
+          {shortlist.length > 0 && (
+            <p className="mt-2 text-label-caps uppercase tracking-widest text-accent">
+              {shortlist.length} trip{shortlist.length === 1 ? '' : 's'} saved
+            </p>
+          )}
         </div>
         <div className="shrink-0">
           <Button

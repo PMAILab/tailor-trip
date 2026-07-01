@@ -68,6 +68,7 @@ export default function TripDetails() {
   const over = target !== null ? cb.total - target : 0;
   const fits = over <= 0;
   const fitPct = target !== null ? Math.min(100, Math.round((cb.total / target) * 100)) : 0;
+  const perDay = d.durationDays ? Math.round(cb.total / d.durationDays) : 0;
 
   function handleBook() {
     openBooking(`${d.name} ${d.state}`, d.id);
@@ -93,7 +94,7 @@ export default function TripDetails() {
             <p className="mb-1 text-label-caps uppercase text-on-surface-variant">Total estimated cost</p>
             <p className="tabular font-display text-display-lg-mobile text-primary">{formatINR(cb.total)}</p>
             <p className="mt-1 text-body-sm text-on-surface-variant">
-              Whole trip, around {formatINR(cb.perPerson)} per person
+              Whole trip, around {formatINR(cb.perPerson)} per person · ≈ {formatINR(perDay)} per day
             </p>
           </div>
           <p className="flex items-start gap-2 border-t border-outline-variant pt-6 text-body-sm text-secondary">

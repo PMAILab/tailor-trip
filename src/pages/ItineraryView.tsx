@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import { useItinerary } from '../state/ItineraryContext';
 import { openBooking } from '../lib/booking';
 import { PARTY_TYPES } from '../data/itineraryOptions';
@@ -109,7 +110,7 @@ export default function ItineraryView() {
 
       {/* Actions */}
       {days.length > 0 && (
-        <div className="fixed bottom-16 left-0 z-40 flex w-full items-center justify-center gap-4 border-t border-outline-variant bg-surface/95 p-4 backdrop-blur-md md:bottom-8 md:left-1/2 md:w-auto md:-translate-x-1/2 md:rounded-full md:border md:px-6 md:py-3">
+        <div className="fixed bottom-16 left-0 z-40 flex w-full items-center justify-center gap-4 border-t border-outline-variant bg-surface/95 p-4 shadow-lg backdrop-blur-md md:bottom-8 md:left-1/2 md:w-auto md:-translate-x-1/2 md:rounded-full md:border md:px-6 md:py-3">
           {editable && (
             <button
               type="button"
@@ -138,11 +139,19 @@ export default function ItineraryView() {
         </div>
       )}
 
-      {toast && (
-        <div className="fixed bottom-32 left-1/2 z-50 -translate-x-1/2 rounded-full bg-inverse-surface px-5 py-2 text-body-sm text-inverse-on-surface shadow-lg md:bottom-24">
-          {toast}
-        </div>
-      )}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed bottom-32 left-1/2 z-50 -translate-x-1/2 rounded-full bg-inverse-surface px-5 py-2 text-body-sm text-inverse-on-surface shadow-lg md:bottom-24"
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

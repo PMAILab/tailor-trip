@@ -70,6 +70,13 @@ export default function Compare() {
     null,
   );
 
+  // Real loss-aversion framing: surface the actual price gap between the
+  // cheapest selected trip and the next-cheapest, computed from real
+  // costBreakdown totals (no fabricated figures).
+  const byCost = [...selectedRecs].sort((a, b) => a.costBreakdown.total - b.costBreakdown.total);
+  const costDelta =
+    byCost.length >= 2 ? byCost[1].costBreakdown.total - byCost[0].costBreakdown.total : 0;
+
   // Stream the AI verdict whenever the selection changes.
   useEffect(() => {
     if (selectedRecs.length < 2) {
@@ -203,11 +210,19 @@ export default function Compare() {
           </thead>
           <tbody className="text-body-md">
             <Row label="Total cost">
-              {selectedRecs.map((r) => (
-                <td key={r.destination.id} className={`${cell} ${r.destination.id === bestCostId ? HL : ''}`}>
-                  <span className="tabular text-primary">{formatINR(r.costBreakdown.total)}</span>
-                </td>
-              ))}
+              {selectedRecs.map((r) => {
+                const isBest = r.destination.id === bestCostId;
+                return (
+                  <td key={r.destination.id} className={`${cell} ${isBest ? HL : ''}`}>
+                    <span className="tabular text-primary">{formatINR(r.costBreakdown.total)}</span>
+                    {isBest && costDelta > 0 && (
+                      <span className="mt-1 block text-[10px] uppercase tracking-wider text-accent">
+                        {formatINR(costDelta)} cheaper than {byCost[1].destination.name}
+                      </span>
+                    )}
+                  </td>
+                );
+              })}
             </Row>
             <Row label="Breakdown">
               {selectedRecs.map((r) => (
