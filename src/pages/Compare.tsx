@@ -4,6 +4,7 @@ import { useApp } from '../state/AppContext';
 import { getTripSummaries, streamCompareVerdict } from '../lib/api';
 import type { TripRecommendation } from '../types/types';
 import { track } from '../lib/analytics';
+import { openBooking } from '../lib/booking';
 import { formatINR, monthLabel } from '../lib/format';
 import Icon from '../components/Icon';
 import Button from '../components/ui/Button';
@@ -16,12 +17,7 @@ const crowdRank = (c: string) => (c === 'Low' ? 0 : c === 'Medium' ? 1 : 2);
 const HL = 'bg-tertiary-fixed border border-tertiary-fixed-dim rounded-lg';
 
 function bookOut(name: string, state: string, id: string) {
-  track('outbound_booking_click', { id });
-  window.open(
-    `https://www.google.com/search?q=${encodeURIComponent(`${name} ${state} trip booking`)}`,
-    '_blank',
-    'noopener,noreferrer',
-  );
+  openBooking(`${name} ${state}`, id);
 }
 
 export default function Compare() {

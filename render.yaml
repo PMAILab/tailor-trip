@@ -1,0 +1,33 @@
+# Render blueprint for TailorTrip: one web service that builds the SPA and
+# serves it together with the Express BFF under /api.
+#
+# Notes
+# - Build runs with devDependencies available (Vite, tsx), so NODE_ENV is left
+#   unset here; the start script sets it to production at runtime.
+# - Render injects PORT; the server reads process.env.PORT.
+# - VITE_* vars are baked into the client bundle at build time, so they must be
+#   set before the build runs. Fill every "sync: false" var in the dashboard.
+services:
+  - type: web
+    name: tailortrip
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: TRAVELPAYOUTS_MARKER
+        sync: false
+      - key: VITE_TRAVELPAYOUTS_MARKER
+        sync: false

@@ -25,11 +25,22 @@ cp .env.example .env   # optional — fill in keys to go live; omit to use fallb
 npm run dev:all        # web on :3000, API on :3001
 ```
 
-- `npm run dev` — frontend only
-- `npm run server` — API only
+- `npm run dev` — frontend only (Vite on :3000)
+- `npm run server` — API only (Express on :3002)
 - `npm run build` — production build of the SPA
 - `npm run lint` — TypeScript type-check
-- `npm start` — serve the built SPA + API (used on Render)
+- `npm start` — serve the built SPA + API together (used in production)
+
+The Vite dev server proxies `/api` to the Express BFF, so the two run side by
+side in development and as a single service in production.
+
+## Deploy (Render)
+
+A `render.yaml` blueprint is included: one web service that builds the SPA and
+serves it with the BFF. Set the environment variables from `.env.example` in the
+Render dashboard (the `VITE_*` values are needed at build time). Render injects
+`PORT` automatically; `npm start` sets `NODE_ENV=production`, and the server then
+serves the built `dist/` for all non-API routes.
 
 ## Design system
 

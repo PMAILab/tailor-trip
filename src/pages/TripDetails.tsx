@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getTripDetails, type TripDetailResponse } from '../lib/api';
 import { useApp } from '../state/AppContext';
-import { track } from '../lib/analytics';
+import { openBooking } from '../lib/booking';
 import { formatINR, monthLabel } from '../lib/format';
 import type { TradeOffMode } from '../types/types';
 import Icon from '../components/Icon';
@@ -70,13 +70,7 @@ export default function TripDetails() {
   const fitPct = target !== null ? Math.min(100, Math.round((cb.total / target) * 100)) : 0;
 
   function handleBook() {
-    track('outbound_booking_click', { id: d.id });
-    // Placeholder outbound link; the affiliate deep link is wired in a later phase.
-    window.open(
-      `https://www.google.com/search?q=${encodeURIComponent(`${d.name} ${d.state} trip booking`)}`,
-      '_blank',
-      'noopener,noreferrer',
-    );
+    openBooking(`${d.name} ${d.state}`, d.id);
   }
 
   return (

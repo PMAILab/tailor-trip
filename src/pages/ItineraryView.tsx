@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useItinerary } from '../state/ItineraryContext';
-import { track } from '../lib/analytics';
+import { openBooking } from '../lib/booking';
 import { PARTY_TYPES } from '../data/itineraryOptions';
 import type { ItineraryDay, ItineraryInputs, SlotKey } from '../types/types';
 import Icon from '../components/Icon';
@@ -15,12 +15,7 @@ const SLOT_LABELS: Record<SlotKey, string> = {
 };
 
 function bookOut(destination: string, id?: string) {
-  track('outbound_booking_click', { id: id ?? destination });
-  window.open(
-    `https://www.google.com/search?q=${encodeURIComponent(`${destination} trip booking`)}`,
-    '_blank',
-    'noopener,noreferrer',
-  );
+  openBooking(destination, id);
 }
 
 export default function ItineraryView() {
