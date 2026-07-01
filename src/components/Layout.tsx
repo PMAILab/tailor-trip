@@ -1,0 +1,81 @@
+import type { ReactNode } from 'react';
+import { NavLink, Link } from 'react-router-dom';
+import Icon from './Icon';
+
+const NAV = [
+  { to: '/discover', label: 'Home', icon: 'home' },
+  { to: '/explore', label: 'Explore', icon: 'explore' },
+  { to: '/shortlist', label: 'Shortlist', icon: 'bookmark' },
+];
+
+export default function Layout({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-col pt-20 pb-16 md:pb-0">
+      {/* ─── Desktop top nav ─────────────────────────────────────────── */}
+      <nav className="fixed top-0 left-0 z-50 hidden w-full border-b border-outline-variant bg-surface/80 backdrop-blur-md md:block">
+        <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between px-margin-desktop">
+          <Link to="/" className="font-display text-3xl font-bold tracking-tight text-primary">
+            TailorTrip
+          </Link>
+          <div className="flex h-full items-center gap-8 text-body-md">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex h-full items-center transition-colors ${
+                    isActive
+                      ? 'border-b-2 border-primary font-bold text-primary'
+                      : 'text-on-surface-variant hover:text-primary'
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+          <NavLink to="/profile" className="flex items-center text-primary transition-opacity hover:opacity-70" aria-label="Profile">
+            <Icon name="person" />
+          </NavLink>
+        </div>
+      </nav>
+
+      <main className="flex w-full flex-grow flex-col">{children}</main>
+
+      {/* ─── Desktop footer ──────────────────────────────────────────── */}
+      <footer className="mt-auto hidden w-full border-t border-outline-variant bg-surface md:block">
+        <div className="mx-auto flex max-w-[1280px] flex-col items-center justify-between gap-8 px-margin-desktop py-16 md:flex-row">
+          <div className="font-display text-3xl text-primary">TailorTrip</div>
+          <div className="flex gap-8 text-body-sm">
+            <a className="text-on-surface-variant transition-colors hover:text-primary" href="#">Terms</a>
+            <a className="text-on-surface-variant transition-colors hover:text-primary" href="#">Privacy</a>
+            <a className="text-on-surface-variant transition-colors hover:text-primary" href="#">Support</a>
+          </div>
+          <div className="text-body-sm text-on-surface-variant">© 2026 TailorTrip. All rights reserved.</div>
+        </div>
+      </footer>
+
+      {/* ─── Mobile bottom nav ───────────────────────────────────────── */}
+      <nav className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around border-t border-outline-variant bg-surface px-margin-mobile py-3 md:hidden">
+        {[...NAV, { to: '/profile', label: 'Profile', icon: 'person' }].map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center gap-0.5 text-label-caps ${
+                isActive ? 'text-primary' : 'text-on-surface-variant'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Icon name={item.icon} filled={isActive} />
+                <span>{item.label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+    </div>
+  );
+}
