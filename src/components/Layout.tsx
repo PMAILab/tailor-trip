@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import Icon from './Icon';
+import { useAuth } from '../state/AuthContext';
 
 const NAV = [
   { to: '/discover', label: 'Home', icon: 'home' },
@@ -9,6 +10,9 @@ const NAV = [
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
+  const { isAuthed, user, openAuthModal } = useAuth();
+  const initial = (user?.name ?? user?.email ?? '?').charAt(0).toUpperCase();
+
   return (
     <div className="flex min-h-screen flex-col pt-20 pb-16 md:pb-0">
       {/* ─── Desktop top nav ─────────────────────────────────────────── */}
@@ -34,9 +38,28 @@ export default function Layout({ children }: { children: ReactNode }) {
               </NavLink>
             ))}
           </div>
-          <NavLink to="/profile" className="flex items-center text-primary transition-opacity hover:opacity-70" aria-label="Profile">
-            <Icon name="person" />
-          </NavLink>
+          {isAuthed ? (
+            <NavLink
+              to="/profile"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-body-sm font-medium text-on-primary transition-opacity hover:opacity-80"
+              aria-label="Profile"
+            >
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+              ) : (
+                initial
+              )}
+            </NavLink>
+          ) : (
+            <button
+              type="button"
+              onClick={() => openAuthModal()}
+              className="flex items-center gap-2 text-body-md text-on-surface-variant transition-colors hover:text-primary"
+            >
+              <Icon name="person" />
+              Log in
+            </button>
+          )}
         </div>
       </nav>
 
