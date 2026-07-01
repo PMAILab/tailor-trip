@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './state/AuthContext';
 import { AppProvider } from './state/AppContext';
+import { ItineraryProvider } from './state/ItineraryContext';
 import Layout from './components/Layout';
 import SignInModal from './components/auth/SignInModal';
 import Gated from './components/auth/Gated';
@@ -20,7 +21,8 @@ export default function App() {
   return (
     <AuthProvider>
       <AppProvider>
-        <BrowserRouter>
+        <ItineraryProvider>
+          <BrowserRouter>
           <Layout>
           <Routes>
             {/* Public — discovery is open to everyone */}
@@ -91,7 +93,8 @@ export default function App() {
           </Routes>
           </Layout>
           <SignInModal />
-        </BrowserRouter>
+          </BrowserRouter>
+        </ItineraryProvider>
       </AppProvider>
     </AuthProvider>
   );

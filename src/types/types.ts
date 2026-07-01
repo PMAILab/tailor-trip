@@ -76,3 +76,55 @@ export interface TripRecommendation {
   aiReason: string;
   badges: string[];
 }
+
+// ─── Itinerary ────────────────────────────────────────────────────────
+
+export type Interest =
+  | 'food_cafes'
+  | 'nature'
+  | 'history'
+  | 'nightlife'
+  | 'adventure'
+  | 'spiritual'
+  | 'shopping';
+
+export type PartyType = 'single' | 'couple' | 'friends' | 'family';
+export type Pace = 'relaxed' | 'moderate' | 'packed';
+export type Dietary = 'veg' | 'non_veg' | 'both';
+export type SlotKey = 'morning' | 'afternoon' | 'evening';
+
+export interface ActivitySlot {
+  activity: string;
+  venue: string;
+  duration: string;
+  cost: string;
+  reason: string;
+}
+
+export interface ItineraryDay {
+  day: number;
+  date?: string;
+  title?: string;
+  slots: Record<SlotKey, ActivitySlot>;
+  estimatedDayCost: string;
+}
+
+export interface ItineraryInputs {
+  destination: string;
+  destinationId?: string;
+  startDate?: string;
+  endDate?: string;
+  durationDays?: number;
+  partyType: PartyType;
+  budgetPerPerson: string; // budget range id
+  interests: Interest[];
+  dietaryPreference: Dietary;
+  pace: Pace;
+}
+
+export interface SavedItinerary {
+  id: string;
+  inputs: ItineraryInputs;
+  days: ItineraryDay[];
+  generatedAt: string;
+}

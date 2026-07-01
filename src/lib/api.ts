@@ -4,6 +4,8 @@ import type {
   Destination,
   CostBreakdown,
   TimingInsight,
+  ItineraryDay,
+  ItineraryInputs,
 } from '../types/types';
 
 const BASE = '/api';
@@ -18,6 +20,42 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
     throw new Error(err.error || `Request failed: ${res.status}`);
   }
   return res.json() as Promise<T>;
+}
+
+/** Reads a newline-delimited JSON stream, invoking onMessage per parsed line. */
+async function streamNDJSON<T>(
+  url: string,
+  body: unknown,
+  onMessage: (msg: T) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${BASE}${url}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok || !res.body) throw new Error(`Stream request failed: ${res.status}`);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, idx).trim();
+      buffer = buffer.slice(idx + 1);
+      if (!line) continue;
+      try {
+        onMessage(JSON.parse(line) as T);
+      } catch {
+        /* ignore malformed line */
+      }
+    }
+  }
 }
 
 // ─── Recommendations ──────────────────────────────────────────────────
@@ -80,37 +118,52 @@ export interface CompareDestInput {
 }
 
 /** Streams the AI compare verdict, calling onDelta for each text chunk. */
-export async function streamCompareVerdict(
+export function streamCompareVerdict(
   payload: { destinations: CompareDestInput[]; mood: string | null },
   onDelta: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${BASE}/compare/verdict`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+  return streamNDJSON<{ delta?: string; done?: boolean }>(
+    '/compare/verdict',
+    payload,
+    (msg) => {
+      if (msg.delta) onDelta(msg.delta);
+    },
     signal,
-  });
-  if (!res.ok || !res.body) throw new Error('Verdict request failed');
+  );
+}
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf('\n')) >= 0) {
-      const line = buffer.slice(0, idx).trim();
-      buffer = buffer.slice(idx + 1);
-      if (!line) continue;
-      try {
-        const msg = JSON.parse(line) as { delta?: string; done?: boolean };
-        if (msg.delta) onDelta(msg.delta);
-      } catch {
-        /* ignore malformed line */
-      }
-    }
-  }
+// ─── Itinerary ────────────────────────────────────────────────────────
+
+/** Streams the generated itinerary one day at a time. */
+export function streamItinerary(
+  inputs: ItineraryInputs,
+  onDay: (day: ItineraryDay) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return streamNDJSON<{ day?: ItineraryDay; done?: boolean }>(
+    '/itinerary/generate',
+    inputs,
+    (msg) => {
+      if (msg.day) onDay(msg.day);
+    },
+    signal,
+  );
+}
+
+export function regenerateItineraryDay(payload: {
+  inputs: ItineraryInputs;
+  dayNumber: number;
+  date?: string;
+  priorTitles: string[];
+}): Promise<{ day: ItineraryDay }> {
+  return fetchJSON<{ day: ItineraryDay }>('/itinerary/regenerate-day', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...payload.inputs,
+      dayNumber: payload.dayNumber,
+      date: payload.date,
+      priorTitles: payload.priorTitles,
+    }),
+  });
 }
