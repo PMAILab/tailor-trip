@@ -39,6 +39,8 @@
   --color-accent: #2c3a31; /* deep green — conversion CTAs & best-value highlights */
   --color-accent-hover: #222c25;
   --color-on-accent: #ffffff;
+  --color-tertiary-fixed: #d6e7d9; /* soft green wash — best-value cell in Compare */
+  --color-tertiary-fixed-dim: #bacabe;
 
   /* Status */
   --color-error: #ba1a1a;

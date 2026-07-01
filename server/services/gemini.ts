@@ -77,6 +77,95 @@ Rules: human and specific. Do not use dashes of any kind; use commas or short se
   }
 }
 
+// ─── Compare verdict (streaming) ──────────────────────────────────────
+
+export interface CompareDest {
+  name: string;
+  state?: string;
+  total: number;
+  crowd: string;
+  weather: string;
+  matchScore?: number;
+}
+
+/** Streams a 2–3 sentence recommendation choosing between compared trips.
+ *  Falls back to a computed verdict, streamed word by word, with no keys. */
+export async function streamCompareVerdict(
+  input: { destinations: CompareDest[]; mood?: string | null },
+  onDelta: (text: string) => void,
+): Promise<void> {
+  const ai = getClient();
+  if (!ai || input.destinations.length < 2) {
+    await streamWords(compareFallback(input.destinations), onDelta);
+    return;
+  }
+  try {
+    const stream = await ai.models.generateContentStream({
+      model: MODEL,
+      contents: buildComparePrompt(input),
+    });
+    for await (const chunk of stream) {
+      const t = chunk.text;
+      if (t) onDelta(stripDashes(t));
+    }
+  } catch (err) {
+    console.error('Gemini compare verdict error:', err);
+    await streamWords(compareFallback(input.destinations), onDelta);
+  }
+}
+
+function buildComparePrompt(input: { destinations: CompareDest[]; mood?: string | null }): string {
+  const lines = input.destinations
+    .map(
+      (d) =>
+        `- ${d.name}${d.state ? `, ${d.state}` : ''}: about ₹${d.total.toLocaleString('en-IN')}, ${d.crowd.toLowerCase()} crowds, ${d.weather.toLowerCase()} weather${
+          d.matchScore ? `, match ${d.matchScore}%` : ''
+        }`,
+    )
+    .join('\n');
+  return `You are a warm, plain-spoken travel advisor helping someone choose between these trips${
+    input.mood ? ` for a ${input.mood} mood` : ''
+  }:
+${lines}
+
+In 2 to 3 short sentences, recommend which one to pick and why, and name a clear trade-off. Rules: be decisive but honest. Prices are estimates, never guarantee prices or bookings. Do not use dashes of any kind; use commas or short sentences.`;
+}
+
+function crowdRank(c: string): number {
+  return c === 'Low' ? 0 : c === 'Medium' ? 1 : 2;
+}
+
+function compareFallback(ds: CompareDest[]): string {
+  if (ds.length < 2) return 'Add at least two trips to compare them.';
+  const sorted = [...ds].sort(
+    (a, b) => a.total + crowdRank(a.crowd) * 1500 - (b.total + crowdRank(b.crowd) * 1500),
+  );
+  const win = sorted[0];
+  const alt = sorted[1];
+  const parts = [
+    `For the best balance of cost and calm, ${win.name} looks like the pick, at around ₹${win.total.toLocaleString(
+      'en-IN',
+    )} with ${win.crowd.toLowerCase()} crowds and ${win.weather.toLowerCase()} weather.`,
+  ];
+  if (alt) {
+    parts.push(
+      `${alt.name} is worth it if you want a change of scene, though it runs a little ${
+        alt.total > win.total ? 'pricier' : 'busier'
+      }.`,
+    );
+  }
+  parts.push('These prices are estimates, so double check before you book.');
+  return parts.join(' ');
+}
+
+async function streamWords(text: string, onDelta: (t: string) => void): Promise<void> {
+  const words = text.split(' ');
+  for (let i = 0; i < words.length; i += 1) {
+    onDelta(words[i] + (i < words.length - 1 ? ' ' : ''));
+    await new Promise((r) => setTimeout(r, 16));
+  }
+}
+
 function firstClause(description: string): string {
   return description
     .split(/\s+[—–]\s+/)[0] // em/en dash pause, keep hyphenated words intact

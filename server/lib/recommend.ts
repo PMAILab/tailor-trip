@@ -103,6 +103,23 @@ export interface RecoOptions {
   limit?: number;
 }
 
+/** Build one destination's recommendation (no AI copy — added by the route). */
+export function buildBaseReco(
+  d: Destination,
+  opts: { mood: string | null; budget: BudgetRange | null; tradeOff: TradeOffMode },
+): Omit<TripRecommendation, 'aiReason'> {
+  const chosen = pickMonth(d, opts.tradeOff);
+  const timing = buildTimingInsight(d, chosen);
+  return {
+    destination: d,
+    month: chosen.month,
+    costBreakdown: buildCostBreakdown(chosen.estimatedCost),
+    timingInsight: timing,
+    matchScore: scoreMatch(d, opts.mood, chosen, opts.budget),
+    badges: buildBadges(chosen, timing),
+  };
+}
+
 /** Ranked recommendations without AI copy (added by the route). */
 export function buildBaseRecommendations({
   mood,
@@ -112,18 +129,7 @@ export function buildBaseRecommendations({
 }: RecoOptions): Omit<TripRecommendation, 'aiReason'>[] {
   const pool = mood ? DESTINATIONS.filter((d) => d.moods.includes(mood)) : DESTINATIONS;
 
-  const recos = pool.map((d) => {
-    const chosen = pickMonth(d, tradeOff);
-    const timing = buildTimingInsight(d, chosen);
-    return {
-      destination: d,
-      month: chosen.month,
-      costBreakdown: buildCostBreakdown(chosen.estimatedCost),
-      timingInsight: timing,
-      matchScore: scoreMatch(d, mood, chosen, budget),
-      badges: buildBadges(chosen, timing),
-    };
-  });
+  const recos = pool.map((d) => buildBaseReco(d, { mood, budget, tradeOff }));
 
   let filtered = recos;
   if (budget) {

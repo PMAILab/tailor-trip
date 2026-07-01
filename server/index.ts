@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import recommendationsRouter from './routes/recommendations';
 import tripsRouter from './routes/trips';
+import compareRouter from './routes/compare';
 import analyticsRouter from './routes/analytics';
 
 dotenv.config();
@@ -18,6 +19,7 @@ app.use(express.json());
 // API routes
 app.use('/api/recommendations', recommendationsRouter);
 app.use('/api/trips', tripsRouter);
+app.use('/api/compare', compareRouter);
 app.use('/api/analytics', analyticsRouter);
 
 // Health check — also reports which integrations are live vs. running on
