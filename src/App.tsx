@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './state/AuthContext';
+import { AppProvider } from './state/AppContext';
 import Layout from './components/Layout';
 import SignInModal from './components/auth/SignInModal';
 import Gated from './components/auth/Gated';
@@ -18,8 +19,9 @@ import NotFound from './pages/NotFound';
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Layout>
+      <AppProvider>
+        <BrowserRouter>
+          <Layout>
           <Routes>
             {/* Public — discovery is open to everyone */}
             <Route path="/" element={<Landing />} />
@@ -87,9 +89,10 @@ export default function App() {
 
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </Layout>
-        <SignInModal />
-      </BrowserRouter>
+          </Layout>
+          <SignInModal />
+        </BrowserRouter>
+      </AppProvider>
     </AuthProvider>
   );
 }

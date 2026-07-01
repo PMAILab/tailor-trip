@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import recommendationsRouter from './routes/recommendations';
+import analyticsRouter from './routes/analytics';
 
 dotenv.config();
 
@@ -11,6 +13,10 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// API routes
+app.use('/api/recommendations', recommendationsRouter);
+app.use('/api/analytics', analyticsRouter);
 
 // Health check — also reports which integrations are live vs. running on
 // fallbacks, so the demo can be tested with zero keys configured.
