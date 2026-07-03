@@ -44,6 +44,12 @@ export default function TripCard({ rec }: { rec: TripRecommendation }) {
           </div>
 
           <div className="mb-4 flex flex-wrap gap-2">
+            {rec.distanceKm !== undefined && (
+              <span className="flex items-center gap-1 rounded border border-primary px-2 py-1 text-[10px] uppercase tracking-wider text-primary">
+                <Icon name="near_me" className="text-[12px]" />
+                {rec.distanceKm} km away
+              </span>
+            )}
             {rec.badges.map((b) => (
               <span
                 key={b}

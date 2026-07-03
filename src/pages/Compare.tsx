@@ -182,7 +182,13 @@ export default function Compare() {
 
       {/* Comparison table */}
       <div className="overflow-x-auto pb-4">
-        <table className="w-full min-w-[720px] border-collapse text-left">
+        <table className="w-full min-w-[720px] table-fixed border-collapse text-left">
+          <colgroup>
+            <col className="w-40" />
+            {selectedRecs.map((r) => (
+              <col key={r.destination.id} style={{ width: `calc((100% - 10rem) / ${selectedRecs.length})` }} />
+            ))}
+          </colgroup>
           <thead>
             <tr>
               <th className={`${cell} sticky left-0 z-10 w-40 bg-surface align-bottom text-label-caps uppercase text-on-surface-variant`}>

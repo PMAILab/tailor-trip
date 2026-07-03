@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { DESTINATIONS } from '../data/constants';
 import { PARTY_TYPES, INTERESTS, PACES, DIETARY } from '../data/itineraryOptions';
 import { BUDGET_RANGES } from '../data/constants';
+import { getTripDetails } from '../lib/api';
 import { useApp } from '../state/AppContext';
 import { useItinerary } from '../state/ItineraryContext';
 import Icon from '../components/Icon';
@@ -17,13 +17,30 @@ export default function ItineraryBuilder() {
   const { selectedBudget } = useApp();
   const { generate } = useItinerary();
 
-  const prefill = useMemo(() => {
-    const dest = DESTINATIONS.find((d) => d.id === params.get('dest'));
-    return dest ?? null;
-  }, [params]);
+  const destId = params.get('dest');
+  // Destinations may now be AI-generated (not in the bundled static array),
+  // so the prefill has to go through the API rather than a local lookup.
+  const [prefill, setPrefill] = useState<{ id: string; durationDays: number } | null>(null);
 
   const [step, setStep] = useState<1 | 2>(1);
-  const [destination, setDestination] = useState(prefill?.name ?? '');
+  const [destination, setDestination] = useState('');
+
+  useEffect(() => {
+    if (!destId) return;
+    let active = true;
+    getTripDetails(destId)
+      .then((res) => {
+        if (!active) return;
+        setPrefill({ id: res.destination.id, durationDays: res.destination.durationDays });
+        setDestination(res.destination.name);
+      })
+      .catch(() => {
+        /* leave the field empty — user can still type the destination manually */
+      });
+    return () => {
+      active = false;
+    };
+  }, [destId]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [dateError, setDateError] = useState('');

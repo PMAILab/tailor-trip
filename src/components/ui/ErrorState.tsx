@@ -2,8 +2,8 @@ import Icon from '../Icon';
 import Button from './Button';
 
 export default function ErrorState({
-  title = 'Something went wrong',
-  description = 'We could not load this right now. Please try again.',
+  title = 'Hit a bit of turbulence',
+  description = "That didn't load, but everything's still right where you left it. Mind trying again?",
   onRetry,
 }: {
   title?: string;

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { BUDGET_RANGES, DESTINATIONS } from '../../src/data/constants';
+import { BUDGET_RANGES } from '../../src/data/constants';
 import type { Destination, MonthlyData, TradeOffMode } from '../../src/types/types';
 import {
   buildBaseReco,
@@ -8,7 +8,8 @@ import {
   cheapestMonthData,
   leastCrowdedMonthData,
 } from '../lib/recommend';
-import { generateTripSummary, isGeminiConfigured } from '../services/gemini';
+import { getDestinationById } from '../lib/destinationPool';
+import { getTripSummaryBatch, isGeminiConfigured } from '../services/gemini';
 
 const router = Router();
 
@@ -28,24 +29,24 @@ router.post('/summary', async (req, res) => {
   const tradeOff: TradeOffMode = req.body?.tradeOff ?? 'balanced';
   const budget = budgetId ? (BUDGET_RANGES.find((b) => b.id === budgetId) ?? null) : null;
 
-  const found = ids
-    .map((id) => DESTINATIONS.find((d) => d.id === id))
-    .filter((d): d is Destination => Boolean(d));
-
-  const recommendations = await Promise.all(
-    found.map(async (d) => {
-      const base = buildBaseReco(d, { mood, budget, tradeOff });
-      const md = d.monthlyData.find((m) => m.month === base.month) ?? d.monthlyData[0];
-      const aiReason = await generateTripSummary(d, md);
-      return { ...base, aiReason };
-    }),
+  const found = (await Promise.all(ids.map((id) => getDestinationById(id)))).filter(
+    (d): d is Destination => Boolean(d),
   );
+
+  const bases = found.map((d) => buildBaseReco(d, { mood, budget, tradeOff }));
+  const summaryInputs = bases.map((base) => ({
+    id: base.destination.id,
+    destination: base.destination,
+    monthData: base.destination.monthlyData.find((m) => m.month === base.month) ?? base.destination.monthlyData[0],
+  }));
+  const summaries = await getTripSummaryBatch(summaryInputs);
+  const recommendations = bases.map((base) => ({ ...base, aiReason: summaries[base.destination.id] }));
 
   res.json({ recommendations });
 });
 
 router.get('/:id', async (req, res) => {
-  const dest = DESTINATIONS.find((d) => d.id === req.params.id);
+  const dest = await getDestinationById(req.params.id);
   if (!dest) {
     res.status(404).json({ error: 'Destination not found' });
     return;
@@ -53,7 +54,8 @@ router.get('/:id', async (req, res) => {
 
   const cheapMd = cheapestMonthData(dest);
   const quietMd = leastCrowdedMonthData(dest);
-  const aiReason = await generateTripSummary(dest, cheapMd);
+  const summaries = await getTripSummaryBatch([{ id: dest.id, destination: dest, monthData: cheapMd }]);
+  const aiReason = summaries[dest.id];
 
   res.json({
     destination: dest,

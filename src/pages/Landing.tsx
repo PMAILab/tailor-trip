@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
+import { useAuth } from '../state/AuthContext';
 
 const HERO_IMG =
   'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=2400';
@@ -23,6 +24,8 @@ const STEPS = [
 ];
 
 export default function Landing() {
+  const { isAuthed } = useAuth();
+
   return (
     <div className="w-full">
       <section className="mx-auto flex min-h-[58vh] max-w-[1280px] flex-col items-center justify-center px-margin-mobile py-24 text-center md:px-margin-desktop">
@@ -39,13 +42,18 @@ export default function Landing() {
                 Start with a mood
               </Button>
             </Link>
-            <Link
-              to="/login"
-              className="text-label-caps text-on-surface-variant underline underline-offset-4 transition-colors hover:text-primary"
-            >
-              Log in
-            </Link>
+            {!isAuthed && (
+              <Link
+                to="/login"
+                className="text-label-caps text-on-surface-variant underline underline-offset-4 transition-colors hover:text-primary"
+              >
+                Log in
+              </Link>
+            )}
           </div>
+          <p className="mt-10 text-label-caps uppercase tracking-widest text-on-surface-variant">
+            Transparent pricing · AI-curated picks · Always free to explore
+          </p>
         </div>
       </section>
 

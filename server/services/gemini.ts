@@ -6,8 +6,9 @@ import type {
   ActivitySlot,
   SlotKey,
 } from '../../src/types/types';
+import { peek, cacheSet } from '../lib/cache';
 
-const MODEL = 'gemini-2.5-flash';
+export const MODEL = 'gemini-2.5-flash';
 
 let client: GoogleGenAI | null = null;
 
@@ -16,7 +17,9 @@ export function isGeminiConfigured(): boolean {
   return Boolean(key && key !== 'your-gemini-api-key' && key !== 'YOUR_API_KEY');
 }
 
-function getClient(): GoogleGenAI | null {
+/** Shared client singleton — reused by sibling AI services (e.g.
+ *  geminiDestinations.ts) so there's one GoogleGenAI instance per process. */
+export function getClient(): GoogleGenAI | null {
   if (client) return client;
   if (!isGeminiConfigured()) return null;
   client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
@@ -55,6 +58,103 @@ Rules: be specific and human. Mention cost, crowd, or weather if it helps. Do no
   }
 }
 
+const AI_REASON_TTL_MS = 60 * 60 * 1000; // 1h — a card's blurb isn't time-critical, safe to reuse
+const AI_REASON_FALLBACK_TTL_MS = 10 * 60 * 1000; // a quota-exhausted/failed batch shouldn't stay "stuck on template text" for a full hour once the quota recovers
+
+function reasonCacheKey(destinationId: string, moodLabel: string): string {
+  return `whyFits:${destinationId}:${moodLabel}`;
+}
+
+interface ReasonResult {
+  reason: string;
+  fallback: boolean;
+}
+
+/** One Gemini call covering every destination at once, instead of one call
+ *  per card — free-tier quota (~20 requests/day) can't sustain a page of 10
+ *  cards each spending their own call. Falls back to the same per-item
+ *  template as the single-item version for any id the model dropped. */
+async function generateWhyThisFitsBatch(
+  items: { id: string; destination: Destination; monthData: MonthlyData }[],
+  moodLabel: string,
+): Promise<Record<string, ReasonResult>> {
+  const ai = getClient();
+  const allFallback = () =>
+    Object.fromEntries(
+      items.map((it) => [it.id, { reason: fallbackReason(it.destination, moodLabel, it.monthData), fallback: true }]),
+    );
+  if (!ai || items.length === 0) return allFallback();
+
+  const lines = items
+    .map(
+      (it, i) =>
+        `${i + 1}. id="${it.id}" name="${it.destination.name}, ${it.destination.state}" vibe=${it.destination.sentiment.join(', ')} cost=₹${it.monthData.estimatedCost.toLocaleString('en-IN')} crowd=${it.monthData.crowdLevel} weather=${it.monthData.weather} days=${it.destination.durationDays} about="${it.destination.description}"`,
+    )
+    .join('\n');
+  const prompt = `You are a warm, plain-spoken travel advisor. For EACH destination below, write one or two short sentences on why it fits someone in a "${moodLabel}" mood right now.
+
+${lines}
+
+Return ONLY a JSON array, one object per destination, in exactly this shape: [{"id": string, "reason": string}, ...]
+Rules: use the exact id given for each destination. Be specific and human, mention cost, crowd, or weather if it helps. Do not start a reason with the destination name. Do not use dashes of any kind; use commas or short sentences instead.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: { responseMimeType: 'application/json' },
+    });
+    const parsed = JSON.parse(extractJsonArray(response.text ?? '[]')) as Array<{ id?: unknown; reason?: unknown }>;
+    const byId = new Map(
+      parsed
+        .filter((p): p is { id: string; reason: string } => typeof p.id === 'string' && typeof p.reason === 'string')
+        .map((p) => [p.id, stripDashes(p.reason.trim())]),
+    );
+    return Object.fromEntries(
+      items.map((it) => {
+        const reason = byId.get(it.id);
+        return reason
+          ? [it.id, { reason, fallback: false }]
+          : [it.id, { reason: fallbackReason(it.destination, moodLabel, it.monthData), fallback: true }];
+      }),
+    );
+  } catch (err) {
+    console.error('Gemini generateWhyThisFitsBatch error:', err);
+    return allFallback();
+  }
+}
+
+/** Cache-aware entry point recommendations.ts should use instead of calling
+ *  generateWhyThisFits per card: checks each destination's cached blurb
+ *  first, and spends exactly one Gemini call (not N) covering only the
+ *  cache misses. A fully-cached page costs zero AI calls. Fallback text
+ *  gets a short TTL so a quota blip doesn't keep serving template copy for
+ *  a full hour after the quota recovers. */
+export async function getWhyThisFitsBatch(
+  items: { id: string; destination: Destination; monthData: MonthlyData }[],
+  moodLabel: string,
+): Promise<Record<string, string>> {
+  const result: Record<string, string> = {};
+  const misses: typeof items = [];
+
+  for (const it of items) {
+    const cached = peek<string>(reasonCacheKey(it.id, moodLabel));
+    if (cached) result[it.id] = cached;
+    else misses.push(it);
+  }
+
+  if (misses.length > 0) {
+    const fresh = await generateWhyThisFitsBatch(misses, moodLabel);
+    for (const it of misses) {
+      const { reason, fallback } = fresh[it.id];
+      result[it.id] = reason;
+      cacheSet(reasonCacheKey(it.id, moodLabel), reason, fallback ? AI_REASON_FALLBACK_TTL_MS : AI_REASON_TTL_MS);
+    }
+  }
+
+  return result;
+}
+
 /** Neutral one-liner for the trip detail page (no mood framing). */
 export async function generateTripSummary(
   destination: Destination,
@@ -83,6 +183,89 @@ Rules: human and specific. Do not use dashes of any kind; use commas or short se
   }
 }
 
+function summaryCacheKey(destinationId: string, month: number): string {
+  return `tripSummary:${destinationId}:${month}`;
+}
+
+async function generateTripSummaryBatch(
+  items: { id: string; destination: Destination; monthData: MonthlyData }[],
+): Promise<Record<string, ReasonResult>> {
+  const ai = getClient();
+  const allFallback = () =>
+    Object.fromEntries(
+      items.map((it) => [it.id, { reason: tripSummaryFallback(it.destination, it.monthData), fallback: true }]),
+    );
+  if (!ai || items.length === 0) return allFallback();
+
+  const lines = items
+    .map(
+      (it, i) =>
+        `${i + 1}. id="${it.id}" name="${it.destination.name}, ${it.destination.state}" vibe=${it.destination.sentiment.join(', ')} crowd=${it.monthData.crowdLevel} weather=${it.monthData.weather} about="${it.destination.description}"`,
+    )
+    .join('\n');
+  const prompt = `You are a warm, plain-spoken travel advisor. For EACH destination below, write one or two short sentences on why it's worth visiting and what to expect. Mention the crowd or weather if useful.
+
+${lines}
+
+Return ONLY a JSON array, one object per destination, in exactly this shape: [{"id": string, "reason": string}, ...]
+Rules: use the exact id given for each destination. Human and specific. Do not use dashes of any kind; use commas or short sentences instead.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: { responseMimeType: 'application/json' },
+    });
+    const parsed = JSON.parse(extractJsonArray(response.text ?? '[]')) as Array<{ id?: unknown; reason?: unknown }>;
+    const byId = new Map(
+      parsed
+        .filter((p): p is { id: string; reason: string } => typeof p.id === 'string' && typeof p.reason === 'string')
+        .map((p) => [p.id, stripDashes(p.reason.trim())]),
+    );
+    return Object.fromEntries(
+      items.map((it) => {
+        const reason = byId.get(it.id);
+        return reason
+          ? [it.id, { reason, fallback: false }]
+          : [it.id, { reason: tripSummaryFallback(it.destination, it.monthData), fallback: true }];
+      }),
+    );
+  } catch (err) {
+    console.error('Gemini generateTripSummaryBatch error:', err);
+    return allFallback();
+  }
+}
+
+/** Cache-aware entry point trips.ts should use instead of calling
+ *  generateTripSummary directly — shared cache namespace between the single
+ *  trip-details view and the shortlist/compare summary list, so viewing one
+ *  then the other doesn't spend a second call on the same destination+month.
+ *  Fallback text gets a short TTL so a quota blip doesn't keep serving
+ *  template copy for a full hour after the quota recovers. */
+export async function getTripSummaryBatch(
+  items: { id: string; destination: Destination; monthData: MonthlyData }[],
+): Promise<Record<string, string>> {
+  const result: Record<string, string> = {};
+  const misses: typeof items = [];
+
+  for (const it of items) {
+    const cached = peek<string>(summaryCacheKey(it.id, it.monthData.month));
+    if (cached) result[it.id] = cached;
+    else misses.push(it);
+  }
+
+  if (misses.length > 0) {
+    const fresh = await generateTripSummaryBatch(misses);
+    for (const it of misses) {
+      const { reason, fallback } = fresh[it.id];
+      result[it.id] = reason;
+      cacheSet(summaryCacheKey(it.id, it.monthData.month), reason, fallback ? AI_REASON_FALLBACK_TTL_MS : AI_REASON_TTL_MS);
+    }
+  }
+
+  return result;
+}
+
 // ─── Compare verdict (streaming) ──────────────────────────────────────
 
 export interface CompareDest {
@@ -94,8 +277,20 @@ export interface CompareDest {
   matchScore?: number;
 }
 
+const COMPARE_TTL_MS = 30 * 60 * 1000; // repeat visits to the same comparison (very common — back-and-forth while deciding) cost zero extra calls
+
+function compareCacheKey(input: { destinations: CompareDest[]; mood?: string | null }): string {
+  const parts = [...input.destinations]
+    .map((d) => `${d.name}|${d.state ?? ''}|${d.total}|${d.crowd}|${d.weather}`)
+    .sort()
+    .join(';');
+  return `compareVerdict:${input.mood ?? ''}:${parts}`;
+}
+
 /** Streams a 2–3 sentence recommendation choosing between compared trips.
- *  Falls back to a computed verdict, streamed word by word, with no keys. */
+ *  Falls back to a computed verdict, streamed word by word, with no keys.
+ *  A cache hit also streams word by word (from the cached full text) rather
+ *  than spending a second Gemini call on an identical comparison. */
 export async function streamCompareVerdict(
   input: { destinations: CompareDest[]; mood?: string | null },
   onDelta: (text: string) => void,
@@ -105,15 +300,29 @@ export async function streamCompareVerdict(
     await streamWords(compareFallback(input.destinations), onDelta);
     return;
   }
+
+  const key = compareCacheKey(input);
+  const cached = peek<string>(key);
+  if (cached) {
+    await streamWords(cached, onDelta);
+    return;
+  }
+
   try {
+    let full = '';
     const stream = await ai.models.generateContentStream({
       model: MODEL,
       contents: buildComparePrompt(input),
     });
     for await (const chunk of stream) {
       const t = chunk.text;
-      if (t) onDelta(stripDashes(t));
+      if (t) {
+        const clean = stripDashes(t);
+        full += clean;
+        onDelta(clean);
+      }
     }
+    if (full.trim()) cacheSet(key, full, COMPARE_TTL_MS);
   } catch (err) {
     console.error('Gemini compare verdict error:', err);
     await streamWords(compareFallback(input.destinations), onDelta);
@@ -217,10 +426,61 @@ Rules: use real, specific places in ${input.destination} where you can. Costs in
   }
 }
 
+/** Plans every requested day in one Gemini call instead of one call per day
+ *  — a 7-day itinerary used to cost 7 calls, more than a third of the
+ *  free-tier's entire daily quota for a single generation. The route fakes
+ *  the progressive day-by-day reveal client sees today by writing these
+ *  results to the stream with a small delay between them, so the UX is
+ *  unchanged even though the generation itself is no longer incremental. */
+export async function generateItineraryBatch(
+  input: ItineraryDayInput,
+  days: { dayNumber: number; dateLabel: string | undefined }[],
+): Promise<ItineraryDay[]> {
+  const ai = getClient();
+  if (!ai) return days.map((d) => fallbackDay(input, d.dayNumber, d.dateLabel));
+
+  const dayNumbers = days.map((d) => d.dayNumber).join(', ');
+  const prompt = `You are a warm, plain-spoken local travel planner. Plan a ${days.length}-day trip to ${input.destination}.
+Traveller: ${input.partyType}. Budget: ${input.budgetLabel} per person. Pace: ${input.pace}. Diet: ${input.dietary}. Interests: ${
+    input.interests.join(', ') || 'a bit of everything'
+  }.
+Plan exactly these day numbers: ${dayNumbers}. Make each day feel different from the others, do not repeat activities or venues across days.
+
+Return ONLY JSON in exactly this shape:
+{"days": [{"day": number, "title": string, "slots": {"morning": {"activity": string, "venue": string, "duration": string, "cost": string, "reason": string}, "afternoon": {...}, "evening": {...}}, "estimatedDayCost": string}, ...]}
+Rules: use real, specific places in ${input.destination} where you can. Costs in rupees like "₹400 to ₹600". Each reason is one short sentence. Do not use dashes of any kind; use commas or short sentences.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: { responseMimeType: 'application/json' },
+    });
+    const parsed = JSON.parse(extractJson(response.text ?? '{}')) as { days?: unknown };
+    const rawDays = Array.isArray(parsed.days) ? parsed.days : [];
+    const byDayNumber = new Map<number, Partial<ItineraryDay> & { title?: string }>();
+    for (const rd of rawDays) {
+      if (rd && typeof rd === 'object' && typeof (rd as { day?: unknown }).day === 'number') {
+        byDayNumber.set((rd as { day: number }).day, rd as Partial<ItineraryDay> & { title?: string });
+      }
+    }
+    return days.map((d) => normalizeDay(byDayNumber.get(d.dayNumber) ?? null, input, d.dayNumber, d.dateLabel));
+  } catch (err) {
+    console.error('Gemini generateItineraryBatch error:', err);
+    return days.map((d) => fallbackDay(input, d.dayNumber, d.dateLabel));
+  }
+}
+
 function extractJson(text: string): string {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   return start >= 0 && end > start ? text.slice(start, end + 1) : '{}';
+}
+
+function extractJsonArray(text: string): string {
+  const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  return start >= 0 && end > start ? text.slice(start, end + 1) : '[]';
 }
 
 function cleanSlot(raw: Partial<ActivitySlot> | undefined, fallback: ActivitySlot): ActivitySlot {

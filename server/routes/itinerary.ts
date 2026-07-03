@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { BUDGET_RANGES } from '../../src/data/constants';
-import { generateItineraryDay, type ItineraryDayInput } from '../services/gemini';
+import { generateItineraryDay, generateItineraryBatch, type ItineraryDayInput } from '../services/gemini';
 
 const router = Router();
 
@@ -40,21 +40,28 @@ function dateForDay(startDate: string | undefined, dayNumber: number): string | 
   return d.toISOString().slice(0, 10);
 }
 
-// Stream the itinerary one day at a time as NDJSON.
+// Streams the itinerary one day at a time as NDJSON — but generates every
+// day in a single Gemini call (see generateItineraryBatch) rather than one
+// call per day, and fakes the progressive reveal by writing results to the
+// stream with a small delay between them, so the client-visible UX is
+// unchanged while the free-tier quota spend drops from up to 7 calls to 1.
 router.post('/generate', async (req, res) => {
   const body = req.body ?? {};
   const input = toInput(body);
-  const days = computeDays(body);
+  const dayCount = computeDays(body);
+  const dayList = Array.from({ length: dayCount }, (_, i) => ({
+    dayNumber: i + 1,
+    dateLabel: dateForDay(body.startDate, i + 1),
+  }));
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Cache-Control', 'no-cache');
 
-  const priorTitles: string[] = [];
   try {
-    for (let i = 1; i <= days; i += 1) {
-      const day = await generateItineraryDay(input, i, dateForDay(body.startDate, i), priorTitles);
-      if (day.title) priorTitles.push(day.title);
+    const days = await generateItineraryBatch(input, dayList);
+    for (const day of days) {
       res.write(`${JSON.stringify({ day })}\n`);
+      await new Promise((r) => setTimeout(r, 200));
     }
   } catch (err) {
     console.error('POST /api/itinerary/generate failed:', err);

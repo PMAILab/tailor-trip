@@ -5,9 +5,18 @@ import Icon from '../Icon';
 const inputClass =
   'w-full rounded-[4px] border border-hairline bg-surface-container-lowest px-4 py-3 text-body-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary';
 
-/** Shared sign-in / sign-up form. Two stages: provider choice, then email. */
-export default function AuthForm({ onSuccess }: { onSuccess?: () => void }) {
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle, isMock } = useAuth();
+/** Shared sign-in / sign-up form. Two stages: provider choice, then email.
+ *  `returnTo` is where the browser should land after the Google OAuth round
+ *  trip — a full-page navigation away from and back to the SPA, so it can't
+ *  be threaded through as in-memory state the way the email flow can. */
+export default function AuthForm({
+  onSuccess,
+  returnTo,
+}: {
+  onSuccess?: () => void;
+  returnTo?: string;
+}) {
+  const { signInWithEmail, signUpWithEmail, isMock } = useAuth();
   const [stage, setStage] = useState<'choice' | 'email'>('choice');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [name, setName] = useState('');
@@ -16,14 +25,9 @@ export default function AuthForm({ onSuccess }: { onSuccess?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleGoogle() {
-    setError(null);
-    setLoading(true);
-    const res = await signInWithGoogle();
-    setLoading(false);
-    if (res.error) setError(res.error);
-    else onSuccess?.(); // mock signs in immediately; real flow redirects
-  }
+  const googleHref = `/api/auth/google?returnTo=${encodeURIComponent(
+    returnTo ?? window.location.pathname + window.location.search,
+  )}`;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -41,15 +45,13 @@ export default function AuthForm({ onSuccess }: { onSuccess?: () => void }) {
   if (stage === 'choice') {
     return (
       <div className="flex w-full flex-col gap-4">
-        <button
-          type="button"
-          onClick={handleGoogle}
-          disabled={loading}
-          className="flex w-full items-center justify-center gap-3 rounded-lg bg-primary px-6 py-4 text-body-md text-on-primary transition-colors hover:bg-accent disabled:opacity-50"
+        <a
+          href={googleHref}
+          className="flex w-full items-center justify-center gap-3 rounded-lg bg-primary px-6 py-4 text-body-md text-on-primary transition-colors hover:bg-accent"
         >
           <Icon name="account_circle" filled />
           Continue with Google
-        </button>
+        </a>
         <button
           type="button"
           onClick={() => setStage('email')}

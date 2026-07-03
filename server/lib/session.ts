@@ -1,0 +1,35 @@
+import type { Request, Response } from 'express';
+import { anonAuthClient, createAuthClient, mapSupabaseUser, type AuthUser } from './supabaseAuth';
+import { clearSessionCookies, setSessionCookies } from './cookies';
+
+function cookies(req: Request): Record<string, string> {
+  return (req.cookies ?? {}) as Record<string, string>;
+}
+
+/** Resolves the real (non-mock) authenticated user from the tt_at/tt_rt
+ *  session cookies, transparently refreshing and rotating cookies when the
+ *  access token has expired. Returns null whenever Supabase auth isn't
+ *  configured (no anonAuthClient, and tt_at/tt_rt are never set by anything
+ *  in that case) — callers don't need a separate mock-mode branch. Used by
+ *  both GET /api/auth/session (which reports null as `{user: null}`, never
+ *  401s) and the requireUser middleware (which 401s on null). */
+export async function resolveUser(req: Request, res: Response): Promise<AuthUser | null> {
+  const c = cookies(req);
+
+  if (c.tt_at && anonAuthClient) {
+    const { data, error } = await anonAuthClient.auth.getUser(c.tt_at);
+    if (!error && data.user) return mapSupabaseUser(data.user);
+  }
+
+  if (c.tt_rt) {
+    const { client } = createAuthClient();
+    const { data, error } = await client.auth.refreshSession({ refresh_token: c.tt_rt });
+    if (!error && data.session) {
+      setSessionCookies(res, data.session);
+      return mapSupabaseUser(data.session.user);
+    }
+    clearSessionCookies(res);
+  }
+
+  return null;
+}

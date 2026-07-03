@@ -8,7 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 import type { ItineraryDay, ItineraryInputs, SavedItinerary, SlotKey, ActivitySlot } from '../types/types';
-import { streamItinerary, regenerateItineraryDay } from '../lib/api';
+import { getSavedItineraries, regenerateItineraryDay, saveItinerary, streamItinerary } from '../lib/api';
+import { useAuth } from './AuthContext';
 import { track } from '../lib/analytics';
 
 const SAVED_KEY = 'tailortrip.itineraries';
@@ -24,11 +25,12 @@ interface Current {
 interface ItineraryState {
   current: Current;
   saved: SavedItinerary[];
+  savedLoading: boolean;
   regeneratingDay: number | null;
   generate: (inputs: ItineraryInputs) => void;
   regenerateDay: (dayNumber: number) => Promise<void>;
   editSlot: (dayNumber: number, slot: SlotKey, patch: Partial<ActivitySlot>) => void;
-  saveCurrent: () => string | null;
+  saveCurrent: () => Promise<string | null>;
   getSaved: (id: string) => SavedItinerary | undefined;
   buildShareText: (days: ItineraryDay[], inputs: ItineraryInputs | null) => string;
   shareCurrent: () => Promise<boolean>;
@@ -36,7 +38,7 @@ interface ItineraryState {
 
 const ItineraryContext = createContext<ItineraryState | null>(null);
 
-function loadSaved(): SavedItinerary[] {
+function loadLocalSaved(): SavedItinerary[] {
   try {
     const raw = localStorage.getItem(SAVED_KEY);
     return raw ? (JSON.parse(raw) as SavedItinerary[]) : [];
@@ -46,14 +48,49 @@ function loadSaved(): SavedItinerary[] {
 }
 
 export function ItineraryProvider({ children }: { children: ReactNode }) {
+  const { user, isMock, loading: authLoading } = useAuth();
   const [current, setCurrent] = useState<Current>({ inputs: null, days: [], status: 'idle' });
-  const [saved, setSaved] = useState<SavedItinerary[]>(() => loadSaved());
+  const [saved, setSaved] = useState<SavedItinerary[]>([]);
+  const [savedLoading, setSavedLoading] = useState(true);
   const [regeneratingDay, setRegeneratingDay] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Mirrors AppContext's shortlist loading: mock mode reads localStorage
+  // (unchanged from before real auth existed); a real signed-in user gets
+  // their server-persisted itineraries; signed-out is empty.
   useEffect(() => {
-    localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
-  }, [saved]);
+    if (authLoading) return;
+    if (isMock) {
+      setSaved(loadLocalSaved());
+      setSavedLoading(false);
+      return;
+    }
+    if (!user) {
+      setSaved([]);
+      setSavedLoading(false);
+      return;
+    }
+    let active = true;
+    setSavedLoading(true);
+    getSavedItineraries()
+      .then(({ itineraries }) => {
+        if (active) setSaved(itineraries);
+      })
+      .catch(() => {
+        if (active) setSaved([]);
+      })
+      .finally(() => {
+        if (active) setSavedLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [authLoading, isMock, user]);
+
+  // Mock mode only — real mode persists via the API on save instead.
+  useEffect(() => {
+    if (isMock) localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
+  }, [isMock, saved]);
 
   const generate = useCallback((inputs: ItineraryInputs) => {
     abortRef.current?.abort();
@@ -116,19 +153,31 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const saveCurrent = useCallback((): string | null => {
+  const saveCurrent = useCallback(async (): Promise<string | null> => {
     if (!current.inputs || current.days.length === 0) return null;
-    const id = crypto.randomUUID();
-    const entry: SavedItinerary = {
-      id,
-      inputs: current.inputs,
-      days: current.days,
-      generatedAt: new Date().toISOString(),
-    };
-    setSaved((prev) => [entry, ...prev]);
-    track('itinerary_saved', { destination: current.inputs.destination, days: current.days.length });
-    return id;
-  }, [current]);
+
+    if (isMock) {
+      const id = crypto.randomUUID();
+      const entry: SavedItinerary = {
+        id,
+        inputs: current.inputs,
+        days: current.days,
+        generatedAt: new Date().toISOString(),
+      };
+      setSaved((prev) => [entry, ...prev]);
+      track('itinerary_saved', { destination: current.inputs.destination, days: current.days.length });
+      return id;
+    }
+
+    try {
+      const { itinerary } = await saveItinerary(current.inputs, current.days);
+      setSaved((prev) => [itinerary, ...prev]);
+      track('itinerary_saved', { destination: current.inputs.destination, days: current.days.length });
+      return itinerary.id;
+    } catch {
+      return null;
+    }
+  }, [current, isMock]);
 
   const getSaved = useCallback((id: string) => saved.find((s) => s.id === id), [saved]);
 
@@ -161,6 +210,7 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
   const value: ItineraryState = {
     current,
     saved,
+    savedLoading,
     regeneratingDay,
     generate,
     regenerateDay,

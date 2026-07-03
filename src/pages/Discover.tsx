@@ -18,7 +18,6 @@ export default function Discover() {
   const { selectedMood, setMood, selectedBudget, setBudget, tradeOff, setTradeOff } = useApp();
 
   const firstName = user?.name?.split(' ')[0];
-  const greeting = firstName ? `Where is your head at today, ${firstName}?` : 'Where is your head at today?';
 
   function handleCurate() {
     if (!selectedMood) return;
@@ -33,8 +32,11 @@ export default function Discover() {
   return (
     <div className="mx-auto w-full max-w-[1280px] px-margin-mobile py-12 md:px-margin-desktop md:py-16">
       <header className="mb-12 text-center md:mb-16 md:text-left">
+        {firstName && (
+          <p className="mb-2 whitespace-nowrap text-body-lg text-on-surface-variant">Hi, {firstName}</p>
+        )}
         <h1 className="mx-auto max-w-2xl font-display text-display-lg-mobile text-primary md:mx-0 md:text-display-lg">
-          {greeting}
+          Where is your head at today?
         </h1>
       </header>
 
@@ -50,16 +52,14 @@ export default function Discover() {
                   type="button"
                   onClick={() => setMood(active ? null : m.id)}
                   aria-pressed={active}
-                  className={`group relative flex aspect-square flex-col items-center justify-center gap-4 p-6 text-center transition-colors hairline-b hairline-r ${
-                    active ? 'bg-surface-container-high' : 'hover:bg-surface-container-low'
-                  }`}
+                  style={{ backgroundColor: active ? m.tint : undefined }}
+                  className="group relative flex aspect-square flex-col items-center justify-center gap-4 p-6 text-center transition-colors hairline-b hairline-r hover:bg-surface-container-low"
                 >
                   <Icon
                     name={m.icon}
                     filled={active}
-                    className={`text-4xl transition-colors ${
-                      active ? 'text-primary' : 'text-on-surface-variant group-hover:text-primary'
-                    }`}
+                    style={{ color: m.color, opacity: active ? 1 : 0.8 }}
+                    className="text-4xl transition-opacity group-hover:opacity-100"
                   />
                   <span className="font-display text-headline-sm text-primary">{m.label}</span>
                 </button>

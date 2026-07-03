@@ -2,42 +2,58 @@ import type { Mood, BudgetRange, Destination, MonthlyData } from '../types/types
 
 // ─── Moods ────────────────────────────────────────────────────────────
 
+// Each mood carries a muted accent color, kept subtle (low-saturation, close
+// to the base surface tone when blended) so mood identity reads through
+// icon tint and a faint selected-state wash rather than bright, competing
+// colors — stays inside the app's restrained bone-and-ink palette.
 export const MOODS: Mood[] = [
   {
     id: 'reset',
     label: 'Need a reset',
     icon: 'spa',
     description: 'Calm beaches, slow mornings, and space to breathe.',
+    color: '#5b7a6e',
+    tint: '#e5e7e1',
   },
   {
     id: 'adventure',
     label: 'Adventure mode',
     icon: 'landscape',
     description: 'Treks, rapids, and a real adrenaline hit.',
+    color: '#a3623f',
+    tint: '#efe4db',
   },
   {
     id: 'budget',
     label: 'Budget weekend',
     icon: 'savings',
     description: 'Hidden gems that stay easy on the wallet.',
+    color: '#a6862f',
+    tint: '#efe9d8',
   },
   {
     id: 'romantic',
     label: 'Romantic escape',
     icon: 'favorite',
     description: 'Scenic stays, quiet corners, and long dinners.',
+    color: '#a15c66',
+    tint: '#eee3e0',
   },
   {
     id: 'workation',
     label: 'Workation vibe',
     icon: 'laptop_mac',
     description: 'Strong wifi, good coffee, and a view worth staying for.',
+    color: '#3d6f8a',
+    tint: '#e0e6e5',
   },
   {
     id: 'explore',
     label: 'Explore something new',
     icon: 'explore',
     description: 'Underrated places and deep cultural dives.',
+    color: '#7d5a92',
+    tint: '#e9e3e6',
   },
 ];
 
@@ -70,9 +86,11 @@ export const DESTINATIONS: Destination[] = [
     id: 'gokarna',
     name: 'Gokarna',
     state: 'Karnataka',
+    lat: 14.55,
+    lng: 74.32,
     heroImages: [
       'https://images.unsplash.com/photo-1596895111956-bf1cf0599ce5?auto=format&fit=crop&q=80&w=1935',
-      'https://images.unsplash.com/photo-1590050751776-0cd1c0a12ce0?auto=format&fit=crop&q=80&w=2070',
+      'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&q=80&w=2070',
     ],
     sentiment: ['nature', 'spiritual'],
     description: 'Pristine beaches, ancient temples, and a laid-back hippie vibe on Karnataka\'s coast.',
@@ -89,6 +107,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'varkala',
     name: 'Varkala',
     state: 'Kerala',
+    lat: 8.73,
+    lng: 76.7,
     heroImages: [
       'https://images.unsplash.com/photo-1593693397690-362cb9666fc2?auto=format&fit=crop&q=80&w=2069',
       'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&q=80&w=2070',
@@ -108,6 +128,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'mcleodganj',
     name: 'McLeod Ganj',
     state: 'Himachal Pradesh',
+    lat: 32.24,
+    lng: 76.32,
     heroImages: [
       'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&q=80&w=1974',
       'https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&q=80&w=2070',
@@ -127,6 +149,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'rishikesh',
     name: 'Rishikesh',
     state: 'Uttarakhand',
+    lat: 30.09,
+    lng: 78.27,
     heroImages: [
       'https://images.unsplash.com/photo-1605640840605-14ac1855827b?auto=format&fit=crop&q=80&w=2069',
       'https://images.unsplash.com/photo-1600240644455-3edc55c375fe?auto=format&fit=crop&q=80&w=2070',
@@ -146,6 +170,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'udaipur',
     name: 'Udaipur',
     state: 'Rajasthan',
+    lat: 24.58,
+    lng: 73.68,
     heroImages: [
       'https://images.unsplash.com/photo-1615836245337-f5b9b2303f10?auto=format&fit=crop&q=80&w=2067',
       'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&q=80&w=2070',
@@ -165,9 +191,11 @@ export const DESTINATIONS: Destination[] = [
     id: 'pondicherry',
     name: 'Pondicherry',
     state: 'Tamil Nadu',
+    lat: 11.94,
+    lng: 79.81,
     heroImages: [
       'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&q=80&w=2070',
-      'https://images.unsplash.com/photo-1621425998519-09c54dc0c07e?auto=format&fit=crop&q=80&w=2070',
+      'https://images.unsplash.com/photo-1595815771614-ade9d652a65d?auto=format&fit=crop&q=80&w=2070',
     ],
     sentiment: ['cultural', 'romantic'],
     description: 'French-colonial charm with pastel streets, beachside cafes, and Auroville nearby.',
@@ -184,6 +212,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'varanasi',
     name: 'Varanasi',
     state: 'Uttar Pradesh',
+    lat: 25.32,
+    lng: 82.97,
     heroImages: [
       'https://images.unsplash.com/photo-1561361513-2d000a50f0dc?auto=format&fit=crop&q=80&w=2076',
       'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?auto=format&fit=crop&q=80&w=2070',
@@ -203,9 +233,11 @@ export const DESTINATIONS: Destination[] = [
     id: 'spiti-valley',
     name: 'Spiti Valley',
     state: 'Himachal Pradesh',
+    lat: 32.25,
+    lng: 78.02,
     heroImages: [
       'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&q=80&w=1974',
-      'https://images.unsplash.com/photo-1585516482738-0b2a2e5d5f1f?auto=format&fit=crop&q=80&w=2070',
+      'https://images.unsplash.com/photo-1626197031507-c17099753214?auto=format&fit=crop&q=80&w=2070',
     ],
     sentiment: ['adventure', 'offbeat'],
     description: 'Cold desert moonscape — ancient monasteries, stargazing, and extreme isolation.',
@@ -222,8 +254,10 @@ export const DESTINATIONS: Destination[] = [
     id: 'hampi',
     name: 'Hampi',
     state: 'Karnataka',
+    lat: 15.34,
+    lng: 76.46,
     heroImages: [
-      'https://images.unsplash.com/photo-1590050751776-0cd1c0a12ce0?auto=format&fit=crop&q=80&w=2070',
+      'https://images.unsplash.com/photo-1524850011238-e3d235c7d4c9?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1600011689032-8b628b8a8747?auto=format&fit=crop&q=80&w=2074',
     ],
     sentiment: ['cultural', 'offbeat'],
@@ -241,6 +275,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'andaman',
     name: 'Andaman Islands',
     state: 'Andaman & Nicobar',
+    lat: 11.62,
+    lng: 92.73,
     heroImages: [
       'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=2073',
       'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&q=80&w=2070',
@@ -260,6 +296,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'manali',
     name: 'Manali',
     state: 'Himachal Pradesh',
+    lat: 32.24,
+    lng: 77.19,
     heroImages: [
       'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&q=80&w=1974',
       'https://images.unsplash.com/photo-1571401835393-8c5f35328320?auto=format&fit=crop&q=80&w=2070',
@@ -279,6 +317,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'jaipur',
     name: 'Jaipur',
     state: 'Rajasthan',
+    lat: 26.91,
+    lng: 75.79,
     heroImages: [
       'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1477587458883-47145ed94245?auto=format&fit=crop&q=80&w=2070',
@@ -298,6 +338,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'goa',
     name: 'Goa',
     state: 'Goa',
+    lat: 15.3,
+    lng: 74.12,
     heroImages: [
       'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&q=80&w=2074',
       'https://images.unsplash.com/photo-1587922546307-776227941871?auto=format&fit=crop&q=80&w=2074',
@@ -317,6 +359,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'coorg',
     name: 'Coorg',
     state: 'Karnataka',
+    lat: 12.42,
+    lng: 75.74,
     heroImages: [
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=2074',
@@ -336,6 +380,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'kasol',
     name: 'Kasol',
     state: 'Himachal Pradesh',
+    lat: 32.01,
+    lng: 77.31,
     heroImages: [
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=2070',
@@ -355,6 +401,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'alleppey',
     name: 'Alleppey',
     state: 'Kerala',
+    lat: 9.49,
+    lng: 76.33,
     heroImages: [
       'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1593693397690-362cb9666fc2?auto=format&fit=crop&q=80&w=2069',
@@ -374,6 +422,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'munnar',
     name: 'Munnar',
     state: 'Kerala',
+    lat: 10.09,
+    lng: 77.06,
     heroImages: [
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=2074',
@@ -393,6 +443,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'darjeeling',
     name: 'Darjeeling',
     state: 'West Bengal',
+    lat: 27.04,
+    lng: 88.26,
     heroImages: [
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&q=80&w=2070',
@@ -412,8 +464,10 @@ export const DESTINATIONS: Destination[] = [
     id: 'leh-ladakh',
     name: 'Leh-Ladakh',
     state: 'Ladakh',
+    lat: 34.15,
+    lng: 77.58,
     heroImages: [
-      'https://images.unsplash.com/photo-1585516482738-0b2a2e5d5f1f?auto=format&fit=crop&q=80&w=2070',
+      'https://images.unsplash.com/photo-1585504198199-20277593b94f?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=2070',
     ],
     sentiment: ['adventure', 'offbeat'],
@@ -431,6 +485,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'ooty',
     name: 'Ooty',
     state: 'Tamil Nadu',
+    lat: 11.41,
+    lng: 76.7,
     heroImages: [
       'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=2074',
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=2070',
@@ -450,6 +506,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'pushkar',
     name: 'Pushkar',
     state: 'Rajasthan',
+    lat: 26.49,
+    lng: 74.55,
     heroImages: [
       'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1477587458883-47145ed94245?auto=format&fit=crop&q=80&w=2070',
@@ -469,6 +527,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'shillong',
     name: 'Shillong',
     state: 'Meghalaya',
+    lat: 25.58,
+    lng: 91.89,
     heroImages: [
       'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=2074',
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=2070',
@@ -488,6 +548,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'bir-billing',
     name: 'Bir Billing',
     state: 'Himachal Pradesh',
+    lat: 32.05,
+    lng: 76.72,
     heroImages: [
       'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=2070',
@@ -507,6 +569,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'kodaikanal',
     name: 'Kodaikanal',
     state: 'Tamil Nadu',
+    lat: 10.24,
+    lng: 77.49,
     heroImages: [
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=2070',
       'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=2074',

@@ -1,4 +1,4 @@
-import { DESTINATIONS, MONTH_LABELS } from '../../src/data/constants';
+import { MONTH_LABELS } from '../../src/data/constants';
 import type {
   BudgetRange,
   CostBreakdown,
@@ -11,6 +11,19 @@ import type {
 } from '../../src/types/types';
 
 const CROWD_RANK: Record<CrowdLevel, number> = { Low: 0, Medium: 1, High: 2 };
+
+const EARTH_RADIUS_KM = 6371;
+
+/** Great-circle distance in km — used only for "near me" sort order and the
+ *  distance badge, so a spherical approximation is more than accurate enough. */
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+}
 
 /** Months a destination is realistically visitable (cost 0 means closed). */
 function accessibleMonths(d: Destination): MonthlyData[] {
@@ -100,16 +113,32 @@ export interface RecoOptions {
   mood: string | null;
   budget: BudgetRange | null;
   tradeOff: TradeOffMode;
+  pool: Destination[];
   limit?: number;
+  offset?: number;
+  /** When set (a "near me" request with known coordinates), results are
+   *  sorted strictly by distance from these coordinates instead of match
+   *  score — the user asked to see nearby places in nearby order, not just
+   *  a location-flavored pool re-ranked by mood fit. */
+  userCoords?: { lat: number; lng: number };
+}
+
+export interface RecoPage {
+  items: Omit<TripRecommendation, 'aiReason'>[];
+  total: number; // count after mood/budget filtering, before offset/limit — lets the caller compute hasMore
 }
 
 /** Build one destination's recommendation (no AI copy — added by the route). */
 export function buildBaseReco(
   d: Destination,
-  opts: { mood: string | null; budget: BudgetRange | null; tradeOff: TradeOffMode },
+  opts: { mood: string | null; budget: BudgetRange | null; tradeOff: TradeOffMode; userCoords?: { lat: number; lng: number } },
 ): Omit<TripRecommendation, 'aiReason'> {
   const chosen = pickMonth(d, opts.tradeOff);
   const timing = buildTimingInsight(d, chosen);
+  const distanceKm =
+    opts.userCoords && d.lat !== undefined && d.lng !== undefined
+      ? Math.round(haversineKm(opts.userCoords, { lat: d.lat, lng: d.lng }))
+      : undefined;
   return {
     destination: d,
     month: chosen.month,
@@ -117,19 +146,38 @@ export function buildBaseReco(
     timingInsight: timing,
     matchScore: scoreMatch(d, opts.mood, chosen, opts.budget),
     badges: buildBadges(chosen, timing),
+    distanceKm,
   };
 }
 
-/** Ranked recommendations without AI copy (added by the route). */
+/** Ranked recommendations without AI copy (added by the route). `pool` may
+ *  contain AI-generated destinations, which — unlike the hand-authored
+ *  static catalog — aren't implicitly trusted to be well-formed, so each
+ *  item is built defensively: one malformed entry is dropped, not fatal to
+ *  the whole page.
+ *
+ *  Paginates the fully scored and sorted list (via `offset`/`limit`), not
+ *  the raw pool — so page 2 continues in match-quality order instead of
+ *  showing an arbitrary slice of unranked candidates. */
 export function buildBaseRecommendations({
   mood,
   budget,
   tradeOff,
+  pool: sourcePool,
   limit = 9,
-}: RecoOptions): Omit<TripRecommendation, 'aiReason'>[] {
-  const pool = mood ? DESTINATIONS.filter((d) => d.moods.includes(mood)) : DESTINATIONS;
+  offset = 0,
+  userCoords,
+}: RecoOptions): RecoPage {
+  const pool = mood ? sourcePool.filter((d) => d.moods.includes(mood)) : sourcePool;
 
-  const recos = pool.map((d) => buildBaseReco(d, { mood, budget, tradeOff }));
+  const recos: Omit<TripRecommendation, 'aiReason'>[] = [];
+  for (const d of pool) {
+    try {
+      recos.push(buildBaseReco(d, { mood, budget, tradeOff, userCoords }));
+    } catch (err) {
+      console.error(`Dropping malformed destination "${d?.id}" from recommendations:`, err);
+    }
+  }
 
   let filtered = recos;
   if (budget) {
@@ -137,8 +185,16 @@ export function buildBaseRecommendations({
     if (within.length > 0) filtered = within;
   }
 
-  filtered.sort(
-    (a, b) => b.matchScore - a.matchScore || a.costBreakdown.total - b.costBreakdown.total,
-  );
-  return filtered.slice(0, limit);
+  if (userCoords) {
+    // Distance-first: unknown-distance items (missing coordinates) sort last
+    // rather than defaulting to 0, which would wrongly read as "closest."
+    filtered.sort((a, b) => {
+      const da = a.distanceKm ?? Infinity;
+      const db = b.distanceKm ?? Infinity;
+      return da - db || a.costBreakdown.total - b.costBreakdown.total;
+    });
+  } else {
+    filtered.sort((a, b) => b.matchScore - a.matchScore || a.costBreakdown.total - b.costBreakdown.total);
+  }
+  return { items: filtered.slice(offset, offset + limit), total: filtered.length };
 }

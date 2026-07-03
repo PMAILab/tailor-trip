@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import Icon from './Icon';
+import ChatWidget from './ChatWidget';
 import { useAuth } from '../state/AuthContext';
 
 const NAV = [
@@ -18,7 +19,8 @@ export default function Layout({ children }: { children: ReactNode }) {
       {/* ─── Desktop top nav ─────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 z-50 hidden w-full border-b border-outline-variant bg-surface/80 backdrop-blur-md md:block">
         <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between px-margin-desktop">
-          <Link to="/" className="font-display text-3xl font-bold tracking-tight text-primary">
+          <Link to="/" className="flex items-center gap-2 font-display text-3xl font-bold tracking-tight text-primary">
+            <img src="/icon.svg" alt="" className="h-8 w-8" />
             TailorTrip
           </Link>
           <div className="flex h-full items-center gap-8 text-body-md">
@@ -67,12 +69,13 @@ export default function Layout({ children }: { children: ReactNode }) {
 
       {/* ─── Desktop footer ──────────────────────────────────────────── */}
       <footer className="mt-auto hidden w-full border-t border-outline-variant bg-surface md:block">
-        <div className="mx-auto flex max-w-[1280px] flex-col items-center justify-between gap-8 px-margin-desktop py-16 md:flex-row">
-          <div className="font-display text-3xl text-primary">TailorTrip</div>
-          <div className="flex gap-8 text-body-sm">
-            <a className="text-on-surface-variant transition-colors hover:text-primary" href="#">Terms</a>
-            <a className="text-on-surface-variant transition-colors hover:text-primary" href="#">Privacy</a>
-            <a className="text-on-surface-variant transition-colors hover:text-primary" href="#">Support</a>
+        <div className="mx-auto flex max-w-[1280px] flex-col items-center justify-between gap-4 px-margin-desktop py-6 md:flex-row">
+          <div className="flex items-center gap-2 font-display text-lg text-primary">
+            <img src="/icon.svg" alt="" className="h-5 w-5" />
+            TailorTrip
+          </div>
+          <div className="flex gap-6 text-body-sm">
+            <a className="text-on-surface-variant transition-colors hover:text-primary" href="#">Made With Passion For Travel, Made In India, Made For India</a>
           </div>
           <div className="text-body-sm text-on-surface-variant">© 2026 TailorTrip. All rights reserved.</div>
         </div>
@@ -99,6 +102,8 @@ export default function Layout({ children }: { children: ReactNode }) {
           </NavLink>
         ))}
       </nav>
+
+      <ChatWidget />
     </div>
   );
 }

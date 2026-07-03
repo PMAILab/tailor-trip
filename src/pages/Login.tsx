@@ -20,7 +20,7 @@ export default function Login() {
         Keep your trips in one place
       </h1>
       <div className="w-full rounded-[10px] border border-outline-variant bg-surface p-8">
-        <AuthForm onSuccess={() => navigate(from, { replace: true })} />
+        <AuthForm returnTo={from} onSuccess={() => navigate(from, { replace: true })} />
       </div>
       <Link
         to="/discover"

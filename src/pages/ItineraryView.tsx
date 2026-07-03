@@ -22,7 +22,7 @@ function bookOut(destination: string, id?: string) {
 export default function ItineraryView() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const { current, getSaved, regenerateDay, editSlot, saveCurrent, shareCurrent, regeneratingDay } =
+  const { current, getSaved, savedLoading, regenerateDay, editSlot, saveCurrent, shareCurrent, regeneratingDay } =
     useItinerary();
 
   const isDraft = id === 'draft';
@@ -39,6 +39,12 @@ export default function ItineraryView() {
     window.setTimeout(() => setToast(null), 2200);
   };
 
+  // A direct reload/deep-link on a real saved itinerary shouldn't flash
+  // "not found" before the saved-itineraries list has finished loading.
+  const stillLoadingSaved = !isDraft && savedLoading;
+  if (stillLoadingSaved) {
+    return <DaySkeleton index={1} />;
+  }
   if (!inputs && !generating) {
     return (
       <EmptyState
@@ -56,8 +62,8 @@ export default function ItineraryView() {
 
   const partyLabel = PARTY_TYPES.find((p) => p.id === inputs?.partyType)?.label ?? '';
 
-  function handleSave() {
-    const newId = saveCurrent();
+  async function handleSave() {
+    const newId = await saveCurrent();
     if (newId) {
       flash('Saved to your profile');
       navigate(`/itinerary/${newId}`, { replace: true });
@@ -114,7 +120,7 @@ export default function ItineraryView() {
           {editable && (
             <button
               type="button"
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               className="flex items-center gap-2 text-label-caps uppercase tracking-widest text-on-surface-variant transition-colors hover:text-primary"
             >
               <Icon name="bookmark" className="text-[18px]" />

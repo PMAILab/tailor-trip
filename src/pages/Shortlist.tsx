@@ -14,11 +14,12 @@ type Status = 'loading' | 'error' | 'done';
 
 export default function Shortlist() {
   const navigate = useNavigate();
-  const { shortlist, selectedMood, tradeOff } = useApp();
+  const { shortlist, shortlistLoading, selectedMood, tradeOff } = useApp();
   const [recs, setRecs] = useState<TripRecommendation[]>([]);
   const [status, setStatus] = useState<Status>('loading');
 
   const load = useCallback(async () => {
+    if (shortlistLoading) return; // initial fetch still in flight; keep the skeleton up
     if (shortlist.length === 0) {
       setRecs([]);
       setStatus('done');
@@ -32,7 +33,7 @@ export default function Shortlist() {
     } catch {
       setStatus('error');
     }
-  }, [shortlist, selectedMood, tradeOff]);
+  }, [shortlist, shortlistLoading, selectedMood, tradeOff]);
 
   useEffect(() => {
     void load();

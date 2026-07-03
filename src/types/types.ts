@@ -23,6 +23,8 @@ export interface Mood {
   label: string;
   icon: string; // Material Symbols name
   description: string;
+  color: string; // muted accent hex — icon tint and selected-state wash, kept subtle to match the bone/ink palette
+  tint: string; // pre-blended light background wash of `color` over the surface color
 }
 
 export interface BudgetRange {
@@ -49,6 +51,8 @@ export interface Destination {
   moods: string[]; // mood ids this destination matches
   durationDays: number;
   monthlyData: MonthlyData[]; // 12 entries, one per month
+  lat?: number; // approximate coordinates — powers "near me" distance sorting
+  lng?: number;
 }
 
 export interface CostBreakdown {
@@ -75,6 +79,7 @@ export interface TripRecommendation {
   matchScore: number; // 0–100
   aiReason: string;
   badges: string[];
+  distanceKm?: number; // only set for "near me" requests where the user's coordinates are known
 }
 
 // ─── Itinerary ────────────────────────────────────────────────────────
