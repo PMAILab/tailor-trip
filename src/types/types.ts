@@ -25,6 +25,7 @@ export interface Mood {
   description: string;
   color: string; // muted accent hex — icon tint and selected-state wash, kept subtle to match the bone/ink palette
   tint: string; // pre-blended light background wash of `color` over the surface color
+  image: string; // hardcoded photo representing the mood — the six moods are fixed, so this doesn't need to be AI/Unsplash-resolved at runtime
 }
 
 export interface BudgetRange {

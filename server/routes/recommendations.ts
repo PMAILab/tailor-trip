@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { BUDGET_RANGES, DESTINATIONS, MOODS } from '../../src/data/constants';
 import type { TradeOffMode } from '../../src/types/types';
 import { buildBaseRecommendations } from '../lib/recommend';
-import { getDestinationPool } from '../lib/destinationPool';
+import { getDestinationPool, withLiveImages } from '../lib/destinationPool';
 import { getWhyThisFitsBatch, isGeminiConfigured } from '../services/gemini';
 
 const router = Router();
@@ -50,7 +50,7 @@ router.post('/', async (req, res) => {
         mood,
         budget,
         tradeOff,
-        pool: DESTINATIONS,
+        pool: withLiveImages(DESTINATIONS),
         offset,
         limit: PAGE_SIZE,
         userCoords,

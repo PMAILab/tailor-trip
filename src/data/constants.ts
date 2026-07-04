@@ -14,6 +14,7 @@ export const MOODS: Mood[] = [
     description: 'Calm beaches, slow mornings, and space to breathe.',
     color: '#5b7a6e',
     tint: '#e5e7e1',
+    image: 'https://images.unsplash.com/photo-1652460816224-0d5f0c00c2a0?auto=format&fit=crop&q=80&w=800',
   },
   {
     id: 'adventure',
@@ -22,6 +23,7 @@ export const MOODS: Mood[] = [
     description: 'Treks, rapids, and a real adrenaline hit.',
     color: '#a3623f',
     tint: '#efe4db',
+    image: 'https://images.unsplash.com/photo-1712765263976-a2f85c3d4c05?auto=format&fit=crop&q=80&w=800',
   },
   {
     id: 'budget',
@@ -30,6 +32,7 @@ export const MOODS: Mood[] = [
     description: 'Hidden gems that stay easy on the wallet.',
     color: '#a6862f',
     tint: '#efe9d8',
+    image: 'https://images.unsplash.com/photo-1707299452840-749704261605?auto=format&fit=crop&q=80&w=800',
   },
   {
     id: 'romantic',
@@ -38,6 +41,7 @@ export const MOODS: Mood[] = [
     description: 'Scenic stays, quiet corners, and long dinners.',
     color: '#a15c66',
     tint: '#eee3e0',
+    image: 'https://images.unsplash.com/photo-1731202211544-2e545be61093?auto=format&fit=crop&q=80&w=800',
   },
   {
     id: 'workation',
@@ -46,6 +50,7 @@ export const MOODS: Mood[] = [
     description: 'Strong wifi, good coffee, and a view worth staying for.',
     color: '#3d6f8a',
     tint: '#e0e6e5',
+    image: 'https://images.unsplash.com/photo-1649061358901-8a28b9237c69?auto=format&fit=crop&q=80&w=800',
   },
   {
     id: 'explore',
@@ -54,6 +59,7 @@ export const MOODS: Mood[] = [
     description: 'Underrated places and deep cultural dives.',
     color: '#7d5a92',
     tint: '#e9e3e6',
+    image: 'https://images.unsplash.com/photo-1763046198257-71bcd1b8a243?auto=format&fit=crop&q=80&w=800',
   },
 ];
 
@@ -215,8 +221,8 @@ export const DESTINATIONS: Destination[] = [
     lat: 25.32,
     lng: 82.97,
     heroImages: [
-      'https://images.unsplash.com/photo-1561361513-2d000a50f0dc?auto=format&fit=crop&q=80&w=2076',
-      'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?auto=format&fit=crop&q=80&w=2070',
+      'https://images.unsplash.com/photo-1706186839147-0d708602587b?auto=format&fit=crop&q=80&w=2070',
+      'https://images.unsplash.com/photo-1599831069477-b2acdc0bcb91?auto=format&fit=crop&q=80&w=2070',
     ],
     sentiment: ['spiritual', 'cultural'],
     description: 'The oldest living city — mesmerizing ghats, evening aarti, and deep spiritual energy.',
@@ -257,8 +263,8 @@ export const DESTINATIONS: Destination[] = [
     lat: 15.34,
     lng: 76.46,
     heroImages: [
-      'https://images.unsplash.com/photo-1524850011238-e3d235c7d4c9?auto=format&fit=crop&q=80&w=2070',
-      'https://images.unsplash.com/photo-1600011689032-8b628b8a8747?auto=format&fit=crop&q=80&w=2074',
+      'https://images.unsplash.com/photo-1695981152719-3fc012dc3da4?auto=format&fit=crop&q=80&w=2070',
+      'https://images.unsplash.com/photo-1696239105346-4e48185eb001?auto=format&fit=crop&q=80&w=2070',
     ],
     sentiment: ['cultural', 'offbeat'],
     description: 'UNESCO ruins scattered across boulder-strewn landscapes — a backpacker paradise.',

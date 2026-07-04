@@ -52,16 +52,22 @@ export default function Discover() {
                   type="button"
                   onClick={() => setMood(active ? null : m.id)}
                   aria-pressed={active}
-                  style={{ backgroundColor: active ? m.tint : undefined }}
-                  className="group relative flex aspect-square flex-col items-center justify-center gap-4 p-6 text-center transition-colors hairline-b hairline-r hover:bg-surface-container-low"
+                  className="group relative flex aspect-square flex-col items-center justify-end overflow-hidden p-6 text-center hairline-b hairline-r"
                 >
+                  <img
+                    src={m.image}
+                    alt=""
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                  {active && <div className="pointer-events-none absolute inset-0 z-10 border-2 border-white" />}
                   <Icon
                     name={m.icon}
                     filled={active}
-                    style={{ color: m.color, opacity: active ? 1 : 0.8 }}
-                    className="text-4xl transition-opacity group-hover:opacity-100"
+                    className="relative z-10 mb-3 text-4xl text-white"
                   />
-                  <span className="font-display text-headline-sm text-primary">{m.label}</span>
+                  <span className="relative z-10 font-display text-headline-sm text-white">{m.label}</span>
                 </button>
               );
             })}

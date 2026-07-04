@@ -8,7 +8,7 @@ import { supabase } from './supabase';
 const SCHEMA_VERSION = 'v1';
 const SUPERSET_SIZE = 24; // over-fetched per pool bucket in one Gemini call — enough for ~2 pages of scroll
 const REQUEST_TIMEOUT_MS = 3500; // user-facing: never make the page wait longer than this
-const BACKGROUND_TIMEOUT_MS = 9000; // hard ceiling for the continuation once the request has bailed
+const BACKGROUND_TIMEOUT_MS = 25000; // hard ceiling for the continuation once the request has bailed — generous so a merely-slow Gemini call (e.g. free-tier throttling) can still finish and populate the cache instead of aborting; still bounded so a genuinely hung call can't wedge this pool bucket forever
 // Free-tier Gemini is capped at ~20 requests/day total across the whole app,
 // so pool generation (one call per cache bucket) has to be spent carefully —
 // a 1h TTL could burn the entire daily quota from location buckets alone.
@@ -30,6 +30,25 @@ function poolKeyFor(input: { scope: 'near' | 'country'; lat?: number; lng?: numb
     return `${SCHEMA_VERSION}:near:${bucket(input.lat)}:${bucket(input.lng)}`;
   }
   return `${SCHEMA_VERSION}:country`;
+}
+
+/** The static catalog ships with hardcoded hero images (picked once, can go
+ *  stale or be wrong — e.g. a mismatched photo pasted in for a destination)
+ *  and normally never touches Unsplash at all, since only AI-generated pool
+ *  entries go through `resolveHeroImages`. This brings the static fallback
+ *  onto live Unsplash too, without slowing down the fallback path it backs:
+ *  serve whatever's cached right now (hardcoded on a cold cache, live once
+ *  warm) and kick off a background fetch on a miss so the *next* request —
+ *  which, given how often generation times out, is usually moments away —
+ *  gets the real photo. Mirrors the `assemblePoolWithTimeout` background
+ *  pattern above. */
+export function withLiveImages(destinations: Destination[]): Destination[] {
+  return destinations.map((d) => {
+    const query = `${d.name}, ${d.state}`;
+    const live = peek<string[]>(`unsplash:${query.trim().toLowerCase()}:2`);
+    if (!live) void resolveHeroImages(query, 2);
+    return live ? { ...d, heroImages: live } : d;
+  });
 }
 
 function persistDestination(d: Destination): void {
@@ -108,13 +127,13 @@ export async function getDestinationPool(input: {
 }): Promise<DestinationPoolResult> {
   if (input.poolKey) {
     if (input.poolKey.startsWith('static:')) {
-      return { destinations: DESTINATIONS, fallback: true, poolKey: input.poolKey };
+      return { destinations: withLiveImages(DESTINATIONS), fallback: true, poolKey: input.poolKey };
     }
     const cached = peek<Destination[]>(input.poolKey);
     if (cached && cached.length > 0) {
       return { destinations: cached, fallback: false, poolKey: input.poolKey };
     }
-    return { destinations: DESTINATIONS, fallback: true, poolKey: `static:${input.poolKey}` };
+    return { destinations: withLiveImages(DESTINATIONS), fallback: true, poolKey: `static:${input.poolKey}` };
   }
 
   const poolKey = poolKeyFor(input);
@@ -132,7 +151,7 @@ export async function getDestinationPool(input: {
   if (superset && superset.length > 0) {
     return { destinations: superset, fallback: false, poolKey };
   }
-  return { destinations: DESTINATIONS, fallback: true, poolKey: `static:${poolKey}` };
+  return { destinations: withLiveImages(DESTINATIONS), fallback: true, poolKey: `static:${poolKey}` };
 }
 
 /** Resolves a single destination by id for trip-details/shortlist/compare,
@@ -144,7 +163,7 @@ export async function getDestinationById(id: string): Promise<Destination | null
   if (cached) return cached;
 
   const stat = DESTINATIONS.find((d) => d.id === id);
-  if (stat) return stat;
+  if (stat) return withLiveImages([stat])[0];
 
   if (!supabase) return null;
   try {
