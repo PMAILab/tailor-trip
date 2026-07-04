@@ -1,0 +1,15 @@
+# Netlify site config for TailorTrip's frontend only. The API is a separate
+# Render service (see render.yaml) — set VITE_API_URL and
+# VITE_TRAVELPAYOUTS_MARKER in Netlify's dashboard (Site configuration →
+# Environment variables) before the first build; both are baked in at build
+# time, not read at runtime.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Client-side routing (react-router) — any path not matching a static asset
+# falls back to index.html so deep links (e.g. /trip/123) don't 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

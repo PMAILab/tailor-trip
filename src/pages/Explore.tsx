@@ -1,218 +1,275 @@
-import React, { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, Check, Calendar, Heart, TrendingDown, Sun, Users, Droplets, Snowflake, Diamond, Clock, Brain } from 'lucide-react';
+import { useApp } from '../state/AppContext';
+import { getRecommendations, buildLocalRecommendations, type RecommendationsParams } from '../lib/api';
+import type { TripRecommendation } from '../types/types';
+import { MOODS } from '../data/constants';
+import TripCard from '../components/TripCard';
+import SkeletonCard from '../components/SkeletonCard';
+import TrustLoadingLine from '../components/TrustLoadingLine';
+import EmptyState from '../components/ui/EmptyState';
+import Button from '../components/ui/Button';
+import Icon from '../components/Icon';
 
-export default function Explore() {
-  return (
-    <div className="flex-grow w-full max-w-[1440px] mx-auto px-6 py-8">
-      {/* Filter Bar */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">Recommended For You</h2>
-          <p className="text-slate-500 text-sm">Based on your preference for <span className="font-semibold text-primary">Budget</span> & <span className="font-semibold text-primary">Nature</span></p>
-        </div>
-        
-        <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scroll">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:border-primary/50 hover:bg-blue-50 transition-colors whitespace-nowrap group">
-            <span className="text-sm font-medium text-slate-700 group-hover:text-primary">Weekend Getaway</span>
-            <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-primary" />
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-primary/20 rounded-full shadow-sm whitespace-nowrap">
-            <span className="text-sm font-medium text-primary">Budget Friendly</span>
-            <Check className="w-4 h-4 text-primary" />
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-primary/20 rounded-full shadow-sm whitespace-nowrap">
-            <span className="text-sm font-medium text-primary">Nature</span>
-            <Check className="w-4 h-4 text-primary" />
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:border-primary/50 hover:bg-blue-50 transition-colors whitespace-nowrap group">
-            <span className="text-sm font-medium text-slate-700 group-hover:text-primary">Adventure</span>
-            <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-primary" />
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:border-primary/50 hover:bg-blue-50 transition-colors whitespace-nowrap group">
-            <span className="text-sm font-medium text-slate-700 group-hover:text-primary">Dates: Nov</span>
-            <Calendar className="w-4 h-4 text-gray-400 group-hover:text-primary" />
-          </button>
-        </div>
-      </div>
+// No 'error' state: an unreachable API always falls back to the local
+// catalog (see `load` below), so this feed never has anything to show an
+// error for — the worst case is genuinely empty local results, handled by
+// the empty state below.
+type Status = 'loading' | 'done';
 
-      {/* Grid Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start">
-        <TripCard 
-          id="gokarna"
-          title="Gokarna, Karnataka"
-          subtitle="Chill beach vibes • 94% Match"
-          img="https://images.unsplash.com/photo-1596895111956-bf1cf0599ce5?auto=format&fit=crop&q=80&w=1935&ixlib=rb-4.0.3"
-          cost="₹5,000 - ₹8,000"
-          duration="2-3 Days"
-          tags={[
-            { icon: <Sun className="w-3.5 h-3.5" />, text: "Sunny 28°C", color: "orange" },
-            { icon: <Users className="w-3.5 h-3.5" />, text: "Low Crowd", color: "green" }
-          ]}
-          badge={{ icon: <TrendingDown className="w-3.5 h-3.5" />, text: "Cheapest in Nov", color: "bg-accent-green" }}
-          reason="Perfect for your solo travel preference. It's affordable, offers the nature disconnect you wanted, and November is the start of the season before peak crowds arrive."
-        />
-        
-        <TripCard 
-          id="varkala"
-          title="Varkala, Kerala"
-          subtitle="Cliffside Views • 88% Match"
-          img="https://images.unsplash.com/photo-1593693397690-362cb9666fc2?auto=format&fit=crop&q=80&w=2069&ixlib=rb-4.0.3"
-          cost="₹7,000 - ₹10,000"
-          duration="3-4 Days"
-          tags={[
-            { icon: <Droplets className="w-3.5 h-3.5" />, text: "Humidity 70%", color: "blue" },
-            { icon: <Users className="w-3.5 h-3.5" />, text: "Moderate Crowd", color: "yellow" }
-          ]}
-          reason="Great alternative to Goa. Matches your interest in scenic cafes and calm waters. Slightly higher cost but worth it for the views."
-        />
-        
-        <TripCard 
-          id="mcleodganj"
-          title="McLeod Ganj, HP"
-          subtitle="Mountain Peace • 91% Match"
-          img="https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&q=80&w=1974&ixlib=rb-4.0.3"
-          cost="₹6,000 - ₹9,000"
-          duration="3-4 Days"
-          tags={[
-            { icon: <Snowflake className="w-3.5 h-3.5" />, text: "Chilly 12°C", color: "blue" },
-            { icon: <Users className="w-3.5 h-3.5" />, text: "Low Crowd", color: "green" }
-          ]}
-          reason="You mentioned needing 'peace'. The Tibetan influence and mountain air are perfect for mental resets. Costs are low if you stay in hostels."
-        />
-        
-        <TripCard 
-          id="rishikesh"
-          title="Rishikesh, UK"
-          subtitle="Adventure & Yoga • 85% Match"
-          img="https://images.unsplash.com/photo-1605640840605-14ac1855827b?auto=format&fit=crop&q=80&w=2069&ixlib=rb-4.0.3"
-          cost="₹4,500 - ₹7,000"
-          duration="2 Days"
-          tags={[
-            { icon: <Sun className="w-3.5 h-3.5" />, text: "Mild 22°C", color: "orange" },
-            { icon: <Users className="w-3.5 h-3.5" />, text: "High Crowd", color: "red" }
-          ]}
-          reason="Fits your budget perfectly. While crowded, it offers the rafting adventure you bookmarked last week."
-        />
-        
-        <TripCard 
-          id="udaipur"
-          title="Udaipur, Rajasthan"
-          subtitle="Royal Heritage • 82% Match"
-          img="https://images.unsplash.com/photo-1615836245337-f5b9b2303f10?auto=format&fit=crop&q=80&w=2067&ixlib=rb-4.0.3"
-          cost="₹8,000 - ₹12,000"
-          duration="3 Days"
-          tags={[
-            { icon: <Sun className="w-3.5 h-3.5" />, text: "Warm 30°C", color: "orange" },
-            { icon: <Users className="w-3.5 h-3.5" />, text: "Moderate Crowd", color: "yellow" }
-          ]}
-          badge={{ icon: <Diamond className="w-3.5 h-3.5" />, text: "Best Value", color: "bg-primary" }}
-          reason="A bit pricier, but hits your 'aesthetic photos' goal perfectly. Hostels are available to offset travel costs."
-        />
-        
-        <TripCard 
-          id="pondicherry"
-          title="Pondicherry"
-          subtitle="French Vibes • 80% Match"
-          img="https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&q=80&w=2070&ixlib=rb-4.0.3"
-          cost="₹6,000 - ₹9,000"
-          duration="2-3 Days"
-          tags={[
-            { icon: <Droplets className="w-3.5 h-3.5" />, text: "Rain Likely", color: "blue" },
-            { icon: <Users className="w-3.5 h-3.5" />, text: "Low Crowd", color: "green" }
-          ]}
-          reason="Great for cycling and food. Weather is a bit unpredictable this week, but that keeps the crowd low and prices cheap."
-        />
-      </div>
-    </div>
-  );
+// How long the initial request is given before falling back to the local
+// catalog — short enough that a cold Render instance never leaves the user
+// staring at skeleton cards; the background retries below give it the rest
+// of its wake-up time to respond for real.
+const FIRST_ATTEMPT_TIMEOUT_MS = 4000;
+const BACKGROUND_RETRY_INTERVAL_MS = 5000;
+const BACKGROUND_RETRY_TIMEOUT_MS = 15000;
+const MAX_BACKGROUND_RETRIES = 20; // ~100s total, comfortably past a Render free-tier cold start
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    }, { once: true });
+  });
 }
 
-function TripCard({ id, title, subtitle, img, cost, duration, tags, badge, reason }: any) {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  const colorMap: Record<string, string> = {
-    orange: "bg-orange-50 text-orange-700",
-    green: "bg-green-50 text-green-700",
-    blue: "bg-blue-50 text-blue-700",
-    yellow: "bg-yellow-50 text-yellow-700",
-    red: "bg-red-50 text-red-700",
-  };
+export default function Explore() {
+  const {
+    selectedMood,
+    selectedBudget,
+    tradeOff,
+    setBudget,
+    locationScope,
+    locationStatus,
+    coords,
+    locationLabel,
+    requestLocation,
+    browseAllOfIndia,
+  } = useApp();
+  const [recs, setRecs] = useState<TripRecommendation[]>([]);
+  const [status, setStatus] = useState<Status>('loading');
+  const [page, setPage] = useState(0);
+  const [poolKey, setPoolKey] = useState<string | undefined>(undefined);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  // Cancels a still-running background retry loop when a newer search
+  // supersedes it (mood/budget/location changed, or the component unmounts)
+  // — otherwise a slow-to-arrive stale response could clobber fresh results.
+  const retryAbortRef = useRef<AbortController | null>(null);
+
+  // Keeps polling the live API in the background after the local fallback is
+  // already on screen, and swaps the real data in the moment it responds —
+  // no loading state, no flicker, nothing for the user to notice.
+  const retryInBackground = useCallback(async (params: RecommendationsParams, signal: AbortSignal) => {
+    for (let attempt = 0; attempt < MAX_BACKGROUND_RETRIES && !signal.aborted; attempt++) {
+      await sleep(BACKGROUND_RETRY_INTERVAL_MS, signal);
+      if (signal.aborted) return;
+      try {
+        const res = await getRecommendations(params, { signal, timeoutMs: BACKGROUND_RETRY_TIMEOUT_MS });
+        if (signal.aborted) return;
+        setRecs(res.recommendations);
+        setPoolKey(res.poolKey);
+        setHasMore(Boolean(res.hasMore));
+        return;
+      } catch {
+        // Still waking up — loop and try again.
+      }
+    }
+  }, []);
+
+  // A new mood/budget/tradeOff/location combination is a fresh search —
+  // reset to page 0 rather than append onto results from a different query.
+  const load = useCallback(async () => {
+    retryAbortRef.current?.abort();
+    setPage(0);
+    setHasMore(false);
+
+    const params: RecommendationsParams = {
+      mood: selectedMood,
+      budgetId: selectedBudget?.id ?? null,
+      tradeOff,
+      scope: locationScope,
+      lat: coords?.lat,
+      lng: coords?.lng,
+      page: 0,
+    };
+
+    // Skeleton cards only show up if the local fallback itself is empty
+    // (e.g. this mood/budget has no match in the static catalog either) —
+    // otherwise the feed goes straight from nothing to real content.
+    setStatus('loading');
+    try {
+      const res = await getRecommendations(params, { timeoutMs: FIRST_ATTEMPT_TIMEOUT_MS });
+      setRecs(res.recommendations);
+      setPoolKey(res.poolKey);
+      setHasMore(Boolean(res.hasMore));
+      setStatus('done');
+    } catch {
+      // API unreachable (most likely a cold-starting Render instance) —
+      // show real, correctly-scored trips from the local catalog right
+      // away instead of an error or a long spinner.
+      setRecs(buildLocalRecommendations(params));
+      setPoolKey(undefined);
+      setHasMore(false);
+      setStatus('done');
+
+      const controller = new AbortController();
+      retryAbortRef.current = controller;
+      void retryInBackground(params, controller.signal);
+    }
+  }, [selectedMood, selectedBudget, tradeOff, locationScope, coords, retryInBackground]);
+
+  useEffect(() => {
+    void load();
+    return () => retryAbortRef.current?.abort();
+  }, [load]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || status !== 'done') return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const res = await getRecommendations({
+        mood: selectedMood,
+        budgetId: selectedBudget?.id ?? null,
+        tradeOff,
+        scope: locationScope,
+        lat: coords?.lat,
+        lng: coords?.lng,
+        page: nextPage,
+        poolKey,
+      });
+      setRecs((prev) => [...prev, ...res.recommendations]);
+      setPage(nextPage);
+      setHasMore(Boolean(res.hasMore));
+    } catch {
+      // A failed "load more" shouldn't wipe the results already on screen —
+      // just stop offering more so the user can retry by scrolling again later.
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, status, page, poolKey, selectedMood, selectedBudget, tradeOff, locationScope, coords]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) void loadMore();
+      },
+      { rootMargin: '600px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
+
+  const moodLabel = selectedMood ? MOODS.find((m) => m.id === selectedMood)?.label : null;
+  const tradeOffLabel =
+    tradeOff === 'cheapest' ? 'sorted by price' : tradeOff === 'least_crowded' ? 'sorted by crowd' : null;
+  const moodArticle = moodLabel && /^[aeiou]/i.test(moodLabel) ? 'an' : 'a';
+  const subtitle = moodLabel
+    ? `Because you are in ${moodArticle} ${moodLabel.toLowerCase()} mood`
+    : 'A handpicked mix to get you started';
 
   return (
-    <article className="bg-white rounded-2xl shadow-[0_2px_12px_-4px_rgba(0,0,0,0.1)] hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.15)] transition-all duration-300 overflow-hidden flex flex-col group h-full border border-gray-100 relative">
-      <div className="absolute top-3 right-3 z-20">
-        <button className="bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-sm hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-          <Heart className="w-5 h-5 fill-current" />
-        </button>
+    <div className="mx-auto w-full max-w-[1280px] px-margin-mobile py-12 md:px-margin-desktop">
+      <div className="mb-10">
+        <h1 className="mb-2 font-display text-headline-md text-primary">Curated escapes</h1>
+        <p className="text-body-md text-on-surface-variant">
+          {subtitle}
+          {selectedBudget ? `, within ${selectedBudget.label.toLowerCase()}` : ''}
+          {tradeOffLabel ? `, ${tradeOffLabel}` : ''}.
+        </p>
       </div>
-      
-      <Link to={`/trip/${id}`} className="relative h-64 overflow-hidden block">
-        {badge && (
-          <div className="absolute top-3 left-3 z-10 flex flex-col gap-2 items-start">
-            <span className={`${badge.color}/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm flex items-center gap-1`}>
-              {badge.icon} {badge.text}
-            </span>
-          </div>
-        )}
-        
-        <img 
-          src={img} 
-          alt={title} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute bottom-0 inset-x-0 h-1/2 bg-gradient-to-t from-black/60 to-transparent"></div>
-        <div className="absolute bottom-3 left-4 text-white">
-          <h3 className="text-xl font-bold leading-tight">{title}</h3>
-          <p className="text-white/90 text-sm font-medium">{subtitle}</p>
-        </div>
-      </Link>
-      
-      <div className="p-4 flex flex-col flex-1">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-xs text-slate-400 uppercase font-semibold tracking-wider mb-0.5">Est. Cost</p>
-            <p className="text-lg font-bold text-slate-800">{cost}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-slate-400 uppercase font-semibold tracking-wider mb-0.5">Duration</p>
-            <div className="flex items-center gap-1 justify-end">
-              <Clock className="w-[18px] h-[18px] text-slate-500" />
-              <p className="text-sm font-medium text-slate-700">{duration}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          {tags.map((tag: any, i: number) => (
-            <span key={i} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${colorMap[tag.color]}`}>
-              {tag.icon} {tag.text}
-            </span>
-          ))}
-        </div>
-        
-        <div className="mt-auto bg-slate-50 rounded-lg border border-slate-100">
-          <button 
-            onClick={() => setIsOpen(!isOpen)}
-            className="w-full flex items-center justify-between p-3 cursor-pointer select-none"
+
+      <div className="mb-10 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={requestLocation}
+            disabled={locationStatus === 'pending'}
+            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-body-sm transition-colors disabled:opacity-60 ${
+              locationScope === 'near' && locationStatus === 'granted'
+                ? 'border-primary bg-primary text-on-primary'
+                : 'border-outline-variant text-on-surface-variant hover:border-primary'
+            }`}
           >
-            <span className="text-xs font-semibold text-primary flex items-center gap-1">
-              <Brain className="w-4 h-4" />
-              Why this fits you
-            </span>
-            <ChevronDown className={`w-[18px] h-[18px] text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            <Icon name="my_location" className="text-[16px]" />
+            {locationStatus === 'pending' ? 'Finding you…' : 'Near me'}
           </button>
-          
-          {isOpen && (
-            <div className="px-3 pb-3 pt-0">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {reason}
-              </p>
-            </div>
+          <button
+            type="button"
+            onClick={browseAllOfIndia}
+            className={`rounded-full border px-4 py-2 text-body-sm transition-colors ${
+              locationScope === 'country'
+                ? 'border-primary bg-primary text-on-primary'
+                : 'border-outline-variant text-on-surface-variant hover:border-primary'
+            }`}
+          >
+            All of India
+          </button>
+          {(locationStatus === 'denied' || locationStatus === 'unavailable') && (
+            <p className="text-body-sm text-on-surface-variant">
+              Location access isn&apos;t available — showing escapes from across India instead.
+            </p>
           )}
         </div>
+        {/* Confirms exactly where "near me" locked onto, so the ordering below is never a mystery. */}
+        {locationScope === 'near' && locationStatus === 'granted' && (
+          <p className="flex items-center gap-1.5 text-body-sm text-accent" role="status">
+            <Icon name="location_on" className="text-[16px]" />
+            {locationLabel ? `Showing escapes near ${locationLabel}, closest first` : 'Locating you…'}
+          </p>
+        )}
       </div>
-    </article>
+
+      {status === 'loading' && (
+        <>
+          <TrustLoadingLine />
+          <div className="grid grid-cols-1 gap-gutter md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {status === 'done' && recs.length === 0 && (
+        <EmptyState
+          icon="travel_explore"
+          title="Nothing matched just yet"
+          description="Try a different mood or widen your budget to see more escapes."
+          action={
+            selectedBudget ? (
+              <Button variant="outline" onClick={() => setBudget(null)}>
+                Clear budget
+              </Button>
+            ) : (
+              <Link to="/discover">
+                <Button variant="accent">Pick a mood</Button>
+              </Link>
+            )
+          }
+        />
+      )}
+
+      {status === 'done' && recs.length > 0 && (
+        <>
+          <div className="grid grid-cols-1 gap-gutter md:grid-cols-2 lg:grid-cols-3">
+            {recs.map((r) => (
+              <TripCard key={r.destination.id} rec={r} />
+            ))}
+            {loadingMore &&
+              Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={`more-${i}`} />)}
+          </div>
+          {hasMore && <div ref={sentinelRef} aria-hidden="true" className="h-1 w-full" />}
+        </>
+      )}
+    </div>
   );
 }

@@ -1,111 +1,314 @@
-import React from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, X, MapPin, Calendar, DollarSign, CloudSun, Users, Activity, Coffee, Hotel } from 'lucide-react';
+import { useApp } from '../state/AppContext';
+import { getTripSummaries, streamCompareVerdict } from '../lib/api';
+import type { TripRecommendation } from '../types/types';
+import { track } from '../lib/analytics';
+import { openBooking } from '../lib/booking';
+import { formatINR, monthLabel } from '../lib/format';
+import Icon from '../components/Icon';
+import Button from '../components/ui/Button';
+import ErrorState from '../components/ui/ErrorState';
+import EmptyState from '../components/ui/EmptyState';
+
+type Status = 'loading' | 'error' | 'done';
+
+const crowdRank = (c: string) => (c === 'Low' ? 0 : c === 'Medium' ? 1 : 2);
+const HL = 'bg-tertiary-fixed border border-tertiary-fixed-dim rounded-lg';
+
+function bookOut(name: string, state: string, id: string) {
+  openBooking(`${name} ${state}`, id);
+}
 
 export default function Compare() {
+  const { shortlist, selectedMood, tradeOff } = useApp();
+  const [recs, setRecs] = useState<TripRecommendation[]>([]);
+  const [status, setStatus] = useState<Status>('loading');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [verdict, setVerdict] = useState('');
+  const [verdictLoading, setVerdictLoading] = useState(false);
+  const openedFired = useRef(false);
+
+  const load = useCallback(async () => {
+    if (shortlist.length < 2) {
+      setStatus('done');
+      return;
+    }
+    setStatus('loading');
+    try {
+      const res = await getTripSummaries({ ids: shortlist, mood: selectedMood, tradeOff });
+      setRecs(res.recommendations);
+      setSelected(res.recommendations.slice(0, 3).map((r) => r.destination.id));
+      setStatus('done');
+    } catch {
+      setStatus('error');
+    }
+  }, [shortlist, selectedMood, tradeOff]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const byId = useMemo(() => Object.fromEntries(recs.map((r) => [r.destination.id, r])), [recs]);
+  const selectedRecs = selected.map((id) => byId[id]).filter(Boolean) as TripRecommendation[];
+  const selectedKey = selected.join(',');
+
+  // Best value per row.
+  const bestCostId = selectedRecs.reduce<string | null>(
+    (best, r) => (best === null || r.costBreakdown.total < byId[best].costBreakdown.total ? r.destination.id : best),
+    null,
+  );
+  const bestCrowdId = selectedRecs.reduce<string | null>(
+    (best, r) =>
+      best === null || crowdRank(r.timingInsight.crowdLevel) < crowdRank(byId[best].timingInsight.crowdLevel)
+        ? r.destination.id
+        : best,
+    null,
+  );
+  const bestMatchId = selectedRecs.reduce<string | null>(
+    (best, r) => (best === null || r.matchScore > byId[best].matchScore ? r.destination.id : best),
+    null,
+  );
+
+  // Real loss-aversion framing: surface the actual price gap between the
+  // cheapest selected trip and the next-cheapest, computed from real
+  // costBreakdown totals (no fabricated figures).
+  const byCost = [...selectedRecs].sort((a, b) => a.costBreakdown.total - b.costBreakdown.total);
+  const costDelta =
+    byCost.length >= 2 ? byCost[1].costBreakdown.total - byCost[0].costBreakdown.total : 0;
+
+  // Stream the AI verdict whenever the selection changes.
+  useEffect(() => {
+    if (selectedRecs.length < 2) {
+      setVerdict('');
+      return;
+    }
+    if (!openedFired.current) {
+      track('compare_opened', { count: selectedRecs.length });
+      openedFired.current = true;
+    }
+    const ctrl = new AbortController();
+    setVerdict('');
+    setVerdictLoading(true);
+    streamCompareVerdict(
+      {
+        destinations: selectedRecs.map((r) => ({
+          name: r.destination.name,
+          state: r.destination.state,
+          total: r.costBreakdown.total,
+          crowd: r.timingInsight.crowdLevel,
+          weather: r.timingInsight.weather,
+          matchScore: r.matchScore,
+        })),
+        mood: selectedMood,
+      },
+      (t) => setVerdict((prev) => prev + t),
+      ctrl.signal,
+    )
+      .catch(() => {
+        if (!ctrl.signal.aborted) setVerdict('We could not generate a recommendation right now.');
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setVerdictLoading(false);
+      });
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey, selectedMood]);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      if (prev.includes(id)) return prev.length <= 2 ? prev : prev.filter((x) => x !== id);
+      return prev.length >= 3 ? prev : [...prev, id];
+    });
+  }
+
+  if (status === 'loading') {
+    return (
+      <div className="mx-auto w-full max-w-[1280px] px-margin-mobile py-12 md:px-margin-desktop">
+        <div className="mb-8 h-8 w-56 animate-pulse rounded bg-surface-container-high" />
+        <div className="h-96 w-full animate-pulse rounded-xl bg-surface-container-high" />
+      </div>
+    );
+  }
+  if (status === 'error') return <ErrorState onRetry={() => void load()} />;
+
+  if (shortlist.length < 2) {
+    return (
+      <EmptyState
+        icon="balance"
+        title="Save two trips to compare"
+        description="Compare needs at least two saved destinations. Add a couple from explore and come back."
+        action={
+          <Link to="/explore">
+            <Button variant="accent">Explore destinations</Button>
+          </Link>
+        }
+      />
+    );
+  }
+
+  const cell = 'border-b border-outline-variant p-4 align-top md:p-6';
+
   return (
-    <div className="flex-grow w-full max-w-[1440px] mx-auto px-6 py-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Link to="/shortlist" className="bg-white hover:bg-gray-50 text-slate-700 p-2.5 rounded-full transition-colors border border-gray-200 shadow-sm">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Compare Escapes</h1>
-          <p className="text-slate-500 font-medium">Deciding between Bali and Kyoto.</p>
-        </div>
+    <div className="mx-auto w-full max-w-[1280px] px-margin-mobile py-12 md:px-margin-desktop">
+      <div className="mb-8">
+        <h1 className="mb-2 font-display text-headline-md text-primary">Compare shortlist</h1>
+        <p className="text-body-md text-on-surface-variant">
+          Pick two or three saved trips to line up side by side.
+        </p>
       </div>
 
-      <div className="overflow-x-auto pb-8 hide-scroll">
-        <div className="min-w-[800px] grid grid-cols-3 gap-6">
-          {/* Features Column */}
-          <div className="pt-64 space-y-4">
-            <FeatureRow icon={<MapPin />} title="Location Vibe" />
-            <FeatureRow icon={<DollarSign />} title="Est. Total Cost" />
-            <FeatureRow icon={<Calendar />} title="Ideal Duration" />
-            <FeatureRow icon={<CloudSun />} title="Weather (Nov)" />
-            <FeatureRow icon={<Users />} title="Crowd Level" />
-            <FeatureRow icon={<Activity />} title="Top Activity" />
-            <FeatureRow icon={<Hotel />} title="Accommodation" />
-            <FeatureRow icon={<Coffee />} title="Food Scene" />
-          </div>
-
-          {/* Option 1: Bali */}
-          <div className="bg-white rounded-3xl border border-primary/20 shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden relative">
-            <div className="absolute top-0 inset-x-0 h-1.5 bg-primary"></div>
-            <div className="p-6 border-b border-gray-100">
-              <div className="relative h-40 rounded-xl overflow-hidden mb-4">
-                <img src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&q=80&w=2038&ixlib=rb-4.0.3" alt="Bali" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                <div className="absolute top-2 right-2 bg-primary text-white text-xs font-bold px-2 py-1 rounded-md shadow-sm">
-                  94% Match
-                </div>
-              </div>
-              <h2 className="text-2xl font-black text-slate-900 mb-1">Bali Escape</h2>
-              <p className="text-slate-500 text-sm font-medium mb-4">Ubud & Seminyak</p>
-              <button className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3 rounded-xl transition-colors shadow-md shadow-blue-200">
-                Choose This
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <CompareCell value="Tropical, Relaxed, Spiritual" />
-              <CompareCell value="$1,000" highlight />
-              <CompareCell value="5-7 Days" />
-              <CompareCell value="28°C, Sunny/Humid" />
-              <CompareCell value="Moderate" />
-              <CompareCell value="Surfing & Temples" />
-              <CompareCell value="Villas & Resorts" />
-              <CompareCell value="Cafes & Seafood" />
-            </div>
-          </div>
-
-          {/* Option 2: Kyoto */}
-          <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden hover:border-primary/30 transition-colors">
-            <div className="p-6 border-b border-gray-100">
-              <div className="relative h-40 rounded-xl overflow-hidden mb-4">
-                <img src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&q=80&w=2070&ixlib=rb-4.0.3" alt="Kyoto" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md text-white text-xs font-bold px-2 py-1 rounded-md shadow-sm">
-                  88% Match
-                </div>
-              </div>
-              <h2 className="text-2xl font-black text-slate-900 mb-1">Kyoto Zen</h2>
-              <p className="text-slate-500 text-sm font-medium mb-4">Kyoto, Japan</p>
-              <button className="w-full bg-white hover:bg-gray-50 text-slate-700 font-bold py-3 rounded-xl transition-colors border border-gray-200 shadow-sm">
-                Choose This
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <CompareCell value="Cultural, Historic, Calm" />
-              <CompareCell value="$1,800" />
-              <CompareCell value="7-10 Days" />
-              <CompareCell value="15°C, Crisp Autumn" />
-              <CompareCell value="High (Foliage Season)" />
-              <CompareCell value="Shrines & Gardens" />
-              <CompareCell value="Ryokans & Hotels" />
-              <CompareCell value="Kaiseki & Matcha" />
-            </div>
-          </div>
-        </div>
+      {/* Selection chips */}
+      <div className="mb-8 flex flex-wrap gap-2">
+        {recs.map((r) => {
+          const on = selected.includes(r.destination.id);
+          return (
+            <button
+              key={r.destination.id}
+              type="button"
+              onClick={() => toggle(r.destination.id)}
+              aria-pressed={on}
+              className={`rounded-full border px-4 py-2 text-body-sm transition-colors ${
+                on
+                  ? 'border-primary bg-primary text-on-primary'
+                  : 'border-outline-variant text-on-surface-variant hover:border-primary'
+              }`}
+            >
+              {r.destination.name}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Comparison table */}
+      <div className="overflow-x-auto pb-4">
+        <table className="w-full min-w-[720px] table-fixed border-collapse text-left">
+          <colgroup>
+            <col className="w-40" />
+            {selectedRecs.map((r) => (
+              <col key={r.destination.id} style={{ width: `calc((100% - 10rem) / ${selectedRecs.length})` }} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr>
+              <th className={`${cell} sticky left-0 z-10 w-40 bg-surface align-bottom text-label-caps uppercase text-on-surface-variant`}>
+                Dimension
+              </th>
+              {selectedRecs.map((r) => (
+                <th key={r.destination.id} className={`${cell} align-bottom`}>
+                  <img
+                    src={r.destination.heroImages[0]}
+                    alt={r.destination.name}
+                    className="mb-4 h-40 w-full rounded-lg object-cover"
+                  />
+                  <h2 className="mb-1 font-display text-headline-sm text-primary">{r.destination.name}</h2>
+                  <p className="mb-4 text-body-sm text-on-surface-variant">{r.destination.state}</p>
+                  <button
+                    type="button"
+                    onClick={() => bookOut(r.destination.name, r.destination.state, r.destination.id)}
+                    className="w-full rounded-lg bg-primary py-3 text-label-caps uppercase text-on-primary transition-opacity hover:opacity-90"
+                  >
+                    Book this trip
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="text-body-md">
+            <Row label="Total cost">
+              {selectedRecs.map((r) => {
+                const isBest = r.destination.id === bestCostId;
+                return (
+                  <td key={r.destination.id} className={`${cell} ${isBest ? HL : ''}`}>
+                    <span className="tabular text-primary">{formatINR(r.costBreakdown.total)}</span>
+                    {isBest && costDelta > 0 && (
+                      <span className="mt-1 block text-[10px] uppercase tracking-wider text-accent">
+                        {formatINR(costDelta)} cheaper than {byCost[1].destination.name}
+                      </span>
+                    )}
+                  </td>
+                );
+              })}
+            </Row>
+            <Row label="Breakdown">
+              {selectedRecs.map((r) => (
+                <td key={r.destination.id} className={cell}>
+                  <ul className="space-y-1 text-body-sm text-on-surface-variant">
+                    <li>Stay: {formatINR(r.costBreakdown.stay)}</li>
+                    <li>Travel: {formatINR(r.costBreakdown.travel)}</li>
+                    <li>Food: {formatINR(r.costBreakdown.foodAndExperiences)}</li>
+                  </ul>
+                </td>
+              ))}
+            </Row>
+            <Row label="Best time">
+              {selectedRecs.map((r) => (
+                <td key={r.destination.id} className={cell}>
+                  {monthLabel(r.timingInsight.cheapestMonth)}
+                </td>
+              ))}
+            </Row>
+            <Row label="Crowd">
+              {selectedRecs.map((r) => (
+                <td key={r.destination.id} className={`${cell} ${r.destination.id === bestCrowdId ? HL : ''}`}>
+                  {r.timingInsight.crowdLevel}
+                </td>
+              ))}
+            </Row>
+            <Row label="Weather">
+              {selectedRecs.map((r) => (
+                <td
+                  key={r.destination.id}
+                  className={`${cell} ${r.timingInsight.weather === 'Pleasant' ? HL : ''}`}
+                >
+                  {r.timingInsight.weather}
+                </td>
+              ))}
+            </Row>
+            <Row label="Duration">
+              {selectedRecs.map((r) => (
+                <td key={r.destination.id} className={cell}>
+                  {r.destination.durationDays} days
+                </td>
+              ))}
+            </Row>
+            <Row label="Match">
+              {selectedRecs.map((r) => (
+                <td key={r.destination.id} className={`${cell} ${r.destination.id === bestMatchId ? HL : ''}`}>
+                  <span className="tabular">{r.matchScore}%</span>
+                </td>
+              ))}
+            </Row>
+          </tbody>
+        </table>
+      </div>
+
+      {/* AI recommendation */}
+      {selectedRecs.length >= 2 && (
+        <div className="mt-12 max-w-3xl rounded-xl border border-outline-variant bg-surface-container-low p-8">
+          <div className="mb-4 flex items-center gap-2">
+            <Icon name="auto_awesome" className="text-on-surface-variant" />
+            <span className="text-label-caps uppercase text-on-surface-variant">AI recommendation</span>
+          </div>
+          <p className="font-display text-headline-sm leading-relaxed text-primary">
+            {verdict}
+            {verdictLoading && (
+              <span className="ml-1 inline-block h-5 w-2 animate-pulse bg-primary align-middle" aria-hidden="true" />
+            )}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
-function FeatureRow({ icon, title }: any) {
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="h-14 flex items-center gap-3 text-slate-600 px-4">
-      <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-primary shrink-0">
-        {React.cloneElement(icon, { className: 'w-4 h-4' })}
-      </div>
-      <span className="font-bold text-sm uppercase tracking-wider">{title}</span>
-    </div>
-  );
-}
-
-function CompareCell({ value, highlight }: any) {
-  return (
-    <div className={`h-14 flex items-center px-4 rounded-xl ${highlight ? 'bg-blue-50/50 border border-primary/10' : 'bg-slate-50 border border-transparent'}`}>
-      <span className={`font-semibold text-sm ${highlight ? 'text-primary' : 'text-slate-700'}`}>{value}</span>
-    </div>
+    <tr>
+      <td className="sticky left-0 z-10 border-b border-outline-variant bg-surface p-4 font-medium text-on-surface-variant md:p-6">
+        {label}
+      </td>
+      {children}
+    </tr>
   );
 }

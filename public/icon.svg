@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 102" width="100" height="102">
+  <defs>
+    <linearGradient id="pinFill" x1="15" y1="6" x2="85" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#33322C"/>
+      <stop offset="1" stop-color="#100F0B"/>
+    </linearGradient>
+    <linearGradient id="sparkleFill" x1="35" y1="24" x2="65" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F3D9A0"/>
+      <stop offset="1" stop-color="#C79A4B"/>
+    </linearGradient>
+  </defs>
+  <path
+    d="M50 6 C30 6 15 21 15 41 C15 67 50 96 50 96 C50 96 85 67 85 41 C85 21 70 6 50 6 Z"
+    fill="url(#pinFill)"
+    stroke="#C79A4B"
+    stroke-width="0.75"
+    stroke-opacity="0.5"
+  />
+  <path d="M50 23 Q53 36 66 39 Q53 42 50 55 Q47 42 34 39 Q47 36 50 23 Z" fill="url(#sparkleFill)"/>
+</svg>

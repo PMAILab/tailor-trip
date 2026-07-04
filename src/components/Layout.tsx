@@ -1,75 +1,109 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Plane, Search, Plus, User, Bell } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { NavLink, Link } from 'react-router-dom';
+import Icon from './Icon';
+import ChatWidget from './ChatWidget';
+import { useAuth } from '../state/AuthContext';
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-  const location = useLocation();
-  const isHome = location.pathname === '/';
+const NAV = [
+  { to: '/discover', label: 'Home', icon: 'home' },
+  { to: '/explore', label: 'Explore', icon: 'explore' },
+  { to: '/shortlist', label: 'Shortlist', icon: 'bookmark' },
+];
+
+export default function Layout({ children }: { children: ReactNode }) {
+  const { isAuthed, user, openAuthModal } = useAuth();
+  const initial = (user?.name ?? user?.email ?? '?').charAt(0).toUpperCase();
 
   return (
-    <div className="min-h-screen flex flex-col bg-background-light text-text-main font-sans antialiased">
-      <header className={`sticky top-0 z-50 border-b border-gray-100 shadow-sm transition-colors ${isHome ? 'bg-white' : 'bg-surface-light'}`}>
-        <div className="max-w-[1440px] mx-auto px-6 py-4 flex items-center justify-between gap-6">
-          <Link to="/" className="flex items-center gap-3 min-w-fit">
-            <div className="text-primary p-2 bg-blue-50 rounded-lg">
-              <Plane className="w-6 h-6" />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">TailorTrip</h1>
+    <div className="flex min-h-screen flex-col pt-20 pb-16 md:pb-0">
+      {/* ─── Desktop top nav ─────────────────────────────────────────── */}
+      <nav className="fixed top-0 left-0 z-50 hidden w-full border-b border-outline-variant bg-surface/80 backdrop-blur-md md:block">
+        <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between px-margin-desktop">
+          <Link to="/" className="flex items-center gap-2 font-display text-3xl font-bold tracking-tight text-primary">
+            <img src="/icon.svg" alt="" className="h-8 w-8" />
+            TailorTrip
           </Link>
-
-          {!isHome && (
-            <div className="flex-1 max-w-xl hidden md:block">
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="w-5 h-5 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  className="block w-full pl-10 pr-3 py-2.5 border-none rounded-xl bg-gray-100 text-sm focus:ring-2 focus:ring-primary focus:bg-white transition-all duration-200 placeholder-gray-500 font-medium outline-none"
-                  placeholder="Where do you want to go? (e.g. 'Chill beach vibes under 10k')"
-                />
-              </div>
-            </div>
+          <div className="flex h-full items-center gap-8 text-body-md">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex h-full items-center transition-colors ${
+                    isActive
+                      ? 'border-b-2 border-primary font-bold text-primary'
+                      : 'text-on-surface-variant hover:text-primary'
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+          {isAuthed ? (
+            <NavLink
+              to="/profile"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-body-sm font-medium text-on-primary transition-opacity hover:opacity-80"
+              aria-label="Profile"
+            >
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+              ) : (
+                initial
+              )}
+            </NavLink>
+          ) : (
+            <button
+              type="button"
+              onClick={() => openAuthModal()}
+              className="flex items-center gap-2 text-body-md text-on-surface-variant transition-colors hover:text-primary"
+            >
+              <Icon name="person" />
+              Log in
+            </button>
           )}
-
-          <div className="flex items-center gap-6">
-            <nav className="hidden lg:flex items-center gap-6">
-              <Link to="/explore" className="text-sm font-medium text-slate-600 hover:text-primary transition-colors">Explore</Link>
-              <Link to="/shortlist" className="text-sm font-medium text-slate-600 hover:text-primary transition-colors">My Trips</Link>
-              <Link to="/compare" className="text-sm font-medium text-slate-600 hover:text-primary transition-colors">Compare</Link>
-              <Link to="/profile" className="text-sm font-medium text-slate-600 hover:text-primary transition-colors">Profile</Link>
-            </nav>
-            <div className="h-6 w-px bg-gray-200 hidden lg:block"></div>
-            <div className="flex items-center gap-4">
-              <button className="bg-primary hover:bg-primary-hover text-white text-sm font-semibold py-2 px-5 rounded-lg transition-colors shadow-sm shadow-blue-200 flex items-center gap-2">
-                <Plus className="w-5 h-5" />
-                <span className="hidden sm:inline">Plan a Trip</span>
-              </button>
-              <button className="text-slate-400 hover:text-slate-600 transition-colors">
-                <Bell className="w-5 h-5" />
-              </button>
-              <Link to="/profile" className="h-10 w-10 rounded-full bg-gray-200 border-2 border-white shadow-sm overflow-hidden cursor-pointer flex items-center justify-center text-slate-500">
-                <User className="w-6 h-6" />
-              </Link>
-            </div>
-          </div>
         </div>
-      </header>
+      </nav>
 
-      <main className="flex-grow w-full flex flex-col">
-        {children}
-      </main>
+      <main className="flex w-full flex-grow flex-col">{children}</main>
 
-      <footer className="bg-white border-t border-gray-100 mt-auto py-8">
-        <div className="max-w-[1440px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-slate-400 text-sm">© 2024 TailorTrip. AI-Powered Travel Decisions.</p>
-          <div className="flex gap-6">
-            <a href="#" className="text-slate-400 hover:text-primary text-sm transition-colors">Privacy Policy</a>
-            <a href="#" className="text-slate-400 hover:text-primary text-sm transition-colors">Terms of Service</a>
-            <a href="#" className="text-slate-400 hover:text-primary text-sm transition-colors">Help Center</a>
+      {/* ─── Desktop footer ──────────────────────────────────────────── */}
+      <footer className="mt-auto hidden w-full border-t border-outline-variant bg-surface md:block">
+        <div className="mx-auto flex max-w-[1280px] flex-col items-center justify-between gap-4 px-margin-desktop py-6 md:flex-row">
+          <div className="flex items-center gap-2 font-display text-lg text-primary">
+            <img src="/icon.svg" alt="" className="h-5 w-5" />
+            TailorTrip
           </div>
+          <div className="flex gap-6 text-body-sm">
+            <a className="text-on-surface-variant transition-colors hover:text-primary" href="#">Made With Passion For Travel, Made In India, Made For India</a>
+          </div>
+          <div className="text-body-sm text-on-surface-variant">© 2026 TailorTrip. All rights reserved.</div>
         </div>
       </footer>
+
+      {/* ─── Mobile bottom nav ───────────────────────────────────────── */}
+      <nav className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around border-t border-outline-variant bg-surface px-margin-mobile py-3 md:hidden">
+        {[...NAV, { to: '/profile', label: 'Profile', icon: 'person' }].map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center gap-0.5 text-label-caps ${
+                isActive ? 'text-primary' : 'text-on-surface-variant'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Icon name={item.icon} filled={isActive} />
+                <span>{item.label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+
+      <ChatWidget />
     </div>
   );
 }
