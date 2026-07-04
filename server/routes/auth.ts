@@ -18,6 +18,7 @@ import {
   setOAuthStateCookie,
   setSessionCookies,
 } from '../lib/cookies';
+import { APP_ORIGIN, FRONTEND_ORIGIN } from '../lib/origins';
 
 const router = Router();
 
@@ -33,7 +34,7 @@ function cookies(req: Request): Record<string, string> {
  *  reasonable default for prod if APP_ORIGIN isn't set, but explicit is
  *  more reliable than inferring through a proxy. */
 function requestOrigin(req: Request): string {
-  return process.env.APP_ORIGIN || `${req.protocol}://${req.get('host')}`;
+  return APP_ORIGIN || `${req.protocol}://${req.get('host')}`;
 }
 
 /** Prefixes a sanitized, relative `returnTo`-style path with the frontend's
@@ -43,8 +44,7 @@ function requestOrigin(req: Request): string {
  *  back on the app. Falls back to a relative redirect (unchanged behavior)
  *  when FRONTEND_ORIGIN isn't set, e.g. a single combined-service deploy. */
 function toFrontend(path: string): string {
-  const origin = process.env.FRONTEND_ORIGIN;
-  return origin ? `${origin}${path}` : path;
+  return FRONTEND_ORIGIN ? `${FRONTEND_ORIGIN}${path}` : path;
 }
 
 /** Supabase's raw GoTrue error strings are written for developers, not

@@ -13,8 +13,19 @@ import { DESTINATIONS, BUDGET_RANGES } from '../data/constants';
 
 // Absolute URL to the Render backend in a split deploy (set at build time);
 // falls back to the relative same-origin path for a combined deploy or local
-// dev, where Vite's proxy forwards /api to the local server.
-const BASE = import.meta.env.VITE_API_URL || '/api';
+// dev, where Vite's proxy forwards /api to the local server. Tolerates
+// VITE_API_URL being set to either the bare origin (the natural way to copy
+// it from Render's dashboard) or the full "<origin>/api" — normalizing here
+// means a trailing slash or a missing/duplicated "/api" can't silently
+// break every request.
+function resolveBase(): string {
+  const raw = import.meta.env.VITE_API_URL;
+  if (!raw) return '/api';
+  const trimmed = raw.replace(/\/+$/, '');
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+}
+
+const BASE = resolveBase();
 
 /** Aborts when any input signal aborts (including one that's already
  *  aborted at call time) — lets a caller-supplied signal and a timeout race

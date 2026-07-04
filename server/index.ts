@@ -17,6 +17,7 @@ import chatRouter from './routes/chat';
 import profileRouter from './routes/profile';
 import geocodeRouter from './routes/geocode';
 import { isSupabaseAuthConfigured } from './lib/supabaseAuth';
+import { FRONTEND_ORIGIN } from './lib/origins';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -31,7 +32,7 @@ app.set('trust proxy', 1);
 // credentials allowed — required for the Netlify-hosted frontend's fetch
 // calls to send/receive the httpOnly session cookie across origins. A
 // wildcard origin (the old default) can't be combined with credentials.
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN || true, credentials: true }));
+app.use(cors({ origin: FRONTEND_ORIGIN || true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json());
 
