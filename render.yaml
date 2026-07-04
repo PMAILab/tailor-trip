@@ -1,25 +1,26 @@
-# Render blueprint for TailorTrip: one web service that builds the SPA and
-# serves it together with the Express BFF under /api.
+# Render blueprint for TailorTrip's API only — the frontend is a separate
+# Netlify site (see netlify.toml). This service never runs `vite build`, so
+# server/index.ts's dist/index.html check never finds a build and the
+# service stays API-only (no static file serving).
 #
 # Notes
-# - Build runs with devDependencies available (Vite, tsx), so NODE_ENV is left
-#   unset here; the start script sets it to production at runtime.
 # - Render injects PORT; the server reads process.env.PORT.
-# - The browser never talks to Supabase directly (auth is fully server-side),
-#   so only VITE_TRAVELPAYOUTS_MARKER needs to be baked in at build time.
+# - The browser never talks to Supabase directly (auth is fully server-side).
 #   Fill every "sync: false" var in the dashboard.
+# - Set FRONTEND_ORIGIN to the Netlify site's https://<domain> — required for
+#   CORS (so the browser accepts the cross-origin session cookie) and for
+#   post-login redirects to land back on the frontend instead of here.
 # - Add this service's own https://<domain>/api/auth/google/callback to
 #   Supabase Dashboard → Auth → URL Configuration → Redirect URLs once the
 #   domain is known, and set APP_ORIGIN to that same https://<domain> below —
 #   without it the server falls back to inferring the origin from the
-#   request, which is fine on Render's single-origin setup (no dev proxy
-#   involved) but explicit is more reliable.
+#   request, which works too but explicit is more reliable.
 services:
   - type: web
-    name: tailortrip
+    name: tailortrip-api
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: false
@@ -34,7 +35,7 @@ services:
         sync: false
       - key: APP_ORIGIN
         sync: false
-      - key: TRAVELPAYOUTS_MARKER
+      - key: FRONTEND_ORIGIN
         sync: false
-      - key: VITE_TRAVELPAYOUTS_MARKER
+      - key: TRAVELPAYOUTS_MARKER
         sync: false

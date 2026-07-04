@@ -1,18 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../state/AppContext';
-import { getRecommendations } from '../lib/api';
+import { getRecommendations, buildLocalRecommendations, type RecommendationsParams } from '../lib/api';
 import type { TripRecommendation } from '../types/types';
 import { MOODS } from '../data/constants';
 import TripCard from '../components/TripCard';
 import SkeletonCard from '../components/SkeletonCard';
 import TrustLoadingLine from '../components/TrustLoadingLine';
-import ErrorState from '../components/ui/ErrorState';
 import EmptyState from '../components/ui/EmptyState';
 import Button from '../components/ui/Button';
 import Icon from '../components/Icon';
 
-type Status = 'loading' | 'error' | 'done';
+// No 'error' state: an unreachable API always falls back to the local
+// catalog (see `load` below), so this feed never has anything to show an
+// error for — the worst case is genuinely empty local results, handled by
+// the empty state below.
+type Status = 'loading' | 'done';
+
+// How long the initial request is given before falling back to the local
+// catalog — short enough that a cold Render instance never leaves the user
+// staring at skeleton cards; the background retries below give it the rest
+// of its wake-up time to respond for real.
+const FIRST_ATTEMPT_TIMEOUT_MS = 4000;
+const BACKGROUND_RETRY_INTERVAL_MS = 5000;
+const BACKGROUND_RETRY_TIMEOUT_MS = 15000;
+const MAX_BACKGROUND_RETRIES = 20; // ~100s total, comfortably past a Render free-tier cold start
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    }, { once: true });
+  });
+}
 
 export default function Explore() {
   const {
@@ -34,34 +56,76 @@ export default function Explore() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  // Cancels a still-running background retry loop when a newer search
+  // supersedes it (mood/budget/location changed, or the component unmounts)
+  // — otherwise a slow-to-arrive stale response could clobber fresh results.
+  const retryAbortRef = useRef<AbortController | null>(null);
+
+  // Keeps polling the live API in the background after the local fallback is
+  // already on screen, and swaps the real data in the moment it responds —
+  // no loading state, no flicker, nothing for the user to notice.
+  const retryInBackground = useCallback(async (params: RecommendationsParams, signal: AbortSignal) => {
+    for (let attempt = 0; attempt < MAX_BACKGROUND_RETRIES && !signal.aborted; attempt++) {
+      await sleep(BACKGROUND_RETRY_INTERVAL_MS, signal);
+      if (signal.aborted) return;
+      try {
+        const res = await getRecommendations(params, { signal, timeoutMs: BACKGROUND_RETRY_TIMEOUT_MS });
+        if (signal.aborted) return;
+        setRecs(res.recommendations);
+        setPoolKey(res.poolKey);
+        setHasMore(Boolean(res.hasMore));
+        return;
+      } catch {
+        // Still waking up — loop and try again.
+      }
+    }
+  }, []);
 
   // A new mood/budget/tradeOff/location combination is a fresh search —
   // reset to page 0 rather than append onto results from a different query.
   const load = useCallback(async () => {
-    setStatus('loading');
+    retryAbortRef.current?.abort();
     setPage(0);
     setHasMore(false);
+
+    const params: RecommendationsParams = {
+      mood: selectedMood,
+      budgetId: selectedBudget?.id ?? null,
+      tradeOff,
+      scope: locationScope,
+      lat: coords?.lat,
+      lng: coords?.lng,
+      page: 0,
+    };
+
+    // Skeleton cards only show up if the local fallback itself is empty
+    // (e.g. this mood/budget has no match in the static catalog either) —
+    // otherwise the feed goes straight from nothing to real content.
+    setStatus('loading');
     try {
-      const res = await getRecommendations({
-        mood: selectedMood,
-        budgetId: selectedBudget?.id ?? null,
-        tradeOff,
-        scope: locationScope,
-        lat: coords?.lat,
-        lng: coords?.lng,
-        page: 0,
-      });
+      const res = await getRecommendations(params, { timeoutMs: FIRST_ATTEMPT_TIMEOUT_MS });
       setRecs(res.recommendations);
       setPoolKey(res.poolKey);
       setHasMore(Boolean(res.hasMore));
       setStatus('done');
     } catch {
-      setStatus('error');
+      // API unreachable (most likely a cold-starting Render instance) —
+      // show real, correctly-scored trips from the local catalog right
+      // away instead of an error or a long spinner.
+      setRecs(buildLocalRecommendations(params));
+      setPoolKey(undefined);
+      setHasMore(false);
+      setStatus('done');
+
+      const controller = new AbortController();
+      retryAbortRef.current = controller;
+      void retryInBackground(params, controller.signal);
     }
-  }, [selectedMood, selectedBudget, tradeOff, locationScope, coords]);
+  }, [selectedMood, selectedBudget, tradeOff, locationScope, coords, retryInBackground]);
 
   useEffect(() => {
     void load();
+    return () => retryAbortRef.current?.abort();
   }, [load]);
 
   const loadMore = useCallback(async () => {
@@ -174,8 +238,6 @@ export default function Explore() {
           </div>
         </>
       )}
-
-      {status === 'error' && <ErrorState onRetry={() => void load()} />}
 
       {status === 'done' && recs.length === 0 && (
         <EmptyState

@@ -36,6 +36,17 @@ function requestOrigin(req: Request): string {
   return process.env.APP_ORIGIN || `${req.protocol}://${req.get('host')}`;
 }
 
+/** Prefixes a sanitized, relative `returnTo`-style path with the frontend's
+ *  own origin. Needed once frontend and backend are split across domains
+ *  (Netlify + Render) — a bare `res.redirect('/discover')` from this API
+ *  would otherwise land the browser on the API's own domain instead of
+ *  back on the app. Falls back to a relative redirect (unchanged behavior)
+ *  when FRONTEND_ORIGIN isn't set, e.g. a single combined-service deploy. */
+function toFrontend(path: string): string {
+  const origin = process.env.FRONTEND_ORIGIN;
+  return origin ? `${origin}${path}` : path;
+}
+
 /** Supabase's raw GoTrue error strings are written for developers, not
  *  travellers ("Email rate limit exceeded", "User already registered") —
  *  map the common ones to warm, on-brand copy instead of showing them
@@ -153,7 +164,7 @@ router.get('/google', async (req, res) => {
 
   if (!isSupabaseAuthConfigured) {
     setMockCookie(res, { id: 'mock-google', email: 'traveller@gmail.com', name: 'Guest Traveller' });
-    res.redirect(returnTo);
+    res.redirect(toFrontend(returnTo));
     return;
   }
 
@@ -170,7 +181,7 @@ router.get('/google', async (req, res) => {
     },
   });
   if (error || !data.url) {
-    res.redirect('/login?authError=1');
+    res.redirect(toFrontend('/login?authError=1'));
     return;
   }
   setOAuthStateCookie(res, { seed: storage.dump(), returnTo });
@@ -182,24 +193,24 @@ router.get('/google/callback', async (req, res) => {
   clearOAuthStateCookie(res);
 
   if (!state) {
-    res.redirect('/login?authError=1');
+    res.redirect(toFrontend('/login?authError=1'));
     return;
   }
 
   const code = typeof req.query.code === 'string' ? req.query.code : null;
   if (!code) {
-    res.redirect(`${state.returnTo}?authError=1`);
+    res.redirect(toFrontend(`${state.returnTo}?authError=1`));
     return;
   }
 
   const { client } = createAuthClient(state.seed);
   const { data, error } = await client.auth.exchangeCodeForSession(code);
   if (error || !data.session) {
-    res.redirect(`${state.returnTo}?authError=1`);
+    res.redirect(toFrontend(`${state.returnTo}?authError=1`));
     return;
   }
   setSessionCookies(res, data.session);
-  res.redirect(state.returnTo);
+  res.redirect(toFrontend(state.returnTo));
 });
 
 export default router;

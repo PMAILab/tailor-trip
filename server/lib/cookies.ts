@@ -4,14 +4,24 @@ import type { AuthUser } from './supabaseAuth';
 
 const isProd = process.env.NODE_ENV === 'production';
 
-/** No `domain` attribute — host-only cookies work correctly through both the
- *  Vite dev proxy (Host header is preserved, no `changeOrigin`) and prod's
- *  single-origin serving. Unsigned: `tt_at`/`tt_rt` are validated by Supabase
- *  itself (tampering just yields an invalid-token error, no forged identity);
- *  `tt_oauth`'s PKCE seed, if tampered, breaks the exchange (Supabase rejects
- *  a mismatched verifier); `returnTo` is re-validated server-side regardless
- *  of cookie content. Signing would add no real security here. */
-const base = { httpOnly: true as const, sameSite: 'lax' as const, secure: isProd, path: '/' };
+/** No `domain` attribute — host-only cookies work correctly regardless of
+ *  which origin the frontend is served from. `sameSite: 'none'` in prod is
+ *  required because the frontend (Netlify) and this API (Render) are
+ *  different origins — the browser won't attach a `lax` cookie to the
+ *  cross-site `fetch` calls in src/lib/api.ts. `none` requires `secure`,
+ *  which is already tied to isProd. Dev keeps `lax` since Vite's proxy makes
+ *  the browser see everything as same-origin. Unsigned: `tt_at`/`tt_rt` are
+ *  validated by Supabase itself (tampering just yields an invalid-token
+ *  error, no forged identity); `tt_oauth`'s PKCE seed, if tampered, breaks
+ *  the exchange (Supabase rejects a mismatched verifier); `returnTo` is
+ *  re-validated server-side regardless of cookie content. Signing would add
+ *  no real security here. */
+const base = {
+  httpOnly: true as const,
+  sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+  secure: isProd,
+  path: '/',
+};
 
 const DAY = 24 * 60 * 60 * 1000;
 

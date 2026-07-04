@@ -8,13 +8,41 @@ import type {
   ItineraryInputs,
   SavedItinerary,
 } from '../types/types';
+import { buildBaseRecommendations } from './recommend';
+import { DESTINATIONS, BUDGET_RANGES } from '../data/constants';
 
-const BASE = '/api';
+// Absolute URL to the Render backend in a split deploy (set at build time);
+// falls back to the relative same-origin path for a combined deploy or local
+// dev, where Vite's proxy forwards /api to the local server.
+const BASE = import.meta.env.VITE_API_URL || '/api';
 
-async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+/** Aborts when any input signal aborts (including one that's already
+ *  aborted at call time) — lets a caller-supplied signal and a timeout race
+ *  each other without either one clobbering the other. */
+function combineSignals(...signals: (AbortSignal | null | undefined)[]): AbortSignal | undefined {
+  const present = signals.filter((s): s is AbortSignal => Boolean(s));
+  if (present.length === 0) return undefined;
+  const controller = new AbortController();
+  for (const s of present) {
+    if (s.aborted) {
+      controller.abort(s.reason);
+      break;
+    }
+    s.addEventListener('abort', () => controller.abort(s.reason), { once: true });
+  }
+  return controller.signal;
+}
+
+async function fetchJSON<T>(url: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs, signal, ...rest } = options ?? {};
   const res = await fetch(`${BASE}${url}`, {
     headers: { 'Content-Type': 'application/json' },
-    ...options,
+    // Needed for the httpOnly session cookie to cross to a different origin
+    // (Render) — a same-origin deploy sends it either way, so this is safe
+    // in both topologies.
+    credentials: 'include',
+    ...rest,
+    signal: combineSignals(signal, timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Network error' }));
@@ -47,6 +75,7 @@ async function streamNDJSON<T>(
   const res = await fetch(`${BASE}${url}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(body),
     signal,
   });
@@ -82,7 +111,7 @@ export interface RecommendationsResponse {
   poolKey?: string;
 }
 
-export function getRecommendations(params: {
+export interface RecommendationsParams {
   mood: string | null;
   budgetId: string | null;
   tradeOff: TradeOffMode;
@@ -91,11 +120,46 @@ export function getRecommendations(params: {
   lng?: number;
   page?: number;
   poolKey?: string;
-}): Promise<RecommendationsResponse> {
+}
+
+export function getRecommendations(
+  params: RecommendationsParams,
+  opts?: { signal?: AbortSignal; timeoutMs?: number },
+): Promise<RecommendationsResponse> {
   return fetchJSON<RecommendationsResponse>('/recommendations', {
     method: 'POST',
     body: JSON.stringify(params),
+    signal: opts?.signal,
+    timeoutMs: opts?.timeoutMs,
   });
+}
+
+// ─── Local fallback (no network) ──────────────────────────────────────
+// The static catalog + scoring logic backing this used to live server-side
+// only; it's pure data + math (src/lib/recommend.ts), so it also runs
+// perfectly well in the browser. Used when the API is unreachable — e.g.
+// Render's free tier spinning back up from idle — so the Explore feed still
+// shows real, correctly-scored trips instead of a spinner or blank state.
+// Callers keep retrying the live API in the background and swap this out
+// once it responds (see Explore.tsx).
+
+export function buildLocalRecommendations(params: RecommendationsParams): TripRecommendation[] {
+  const budget = params.budgetId ? (BUDGET_RANGES.find((b) => b.id === params.budgetId) ?? null) : null;
+  const userCoords =
+    params.scope === 'near' && params.lat !== undefined && params.lng !== undefined
+      ? { lat: params.lat, lng: params.lng }
+      : undefined;
+  const page = buildBaseRecommendations({
+    mood: params.mood,
+    budget,
+    tradeOff: params.tradeOff,
+    pool: DESTINATIONS,
+    limit: 9,
+    userCoords,
+  });
+  // No live AI blurb available offline — the destination's own hand-authored
+  // description reads naturally in its place rather than a generic filler.
+  return page.items.map((r) => ({ ...r, aiReason: r.destination.description }));
 }
 
 // ─── Trip details ─────────────────────────────────────────────────────

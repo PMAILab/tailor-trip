@@ -2,6 +2,7 @@ import './env'; // must stay the first import — loads .env before anything els
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import recommendationsRouter from './routes/recommendations';
@@ -26,7 +27,11 @@ const PORT = process.env.PORT || 3002;
 // Supabase, or Google sign-in breaks in production.
 app.set('trust proxy', 1);
 
-app.use(cors());
+// Reflects the request origin (or pins to FRONTEND_ORIGIN when set) with
+// credentials allowed — required for the Netlify-hosted frontend's fetch
+// calls to send/receive the httpOnly session cookie across origins. A
+// wildcard origin (the old default) can't be combined with credentials.
+app.use(cors({ origin: process.env.FRONTEND_ORIGIN || true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json());
 
@@ -59,11 +64,15 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// Serve the built SPA in production (single Render web service).
+// Serve the built SPA only if it was actually built alongside this server —
+// true for a single combined Render service, false for a split deploy where
+// Netlify serves the frontend and this process is API-only. Checking for the
+// file rather than branching on NODE_ENV lets the same server binary work
+// unmodified in either topology.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.join(__dirname, '..', 'dist');
 
-if (process.env.NODE_ENV === 'production') {
+if (fs.existsSync(path.join(distPath, 'index.html'))) {
   app.use(express.static(distPath));
   app.get('*', (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));

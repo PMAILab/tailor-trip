@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { BUDGET_RANGES, DESTINATIONS, MOODS } from '../../src/data/constants';
 import type { TradeOffMode } from '../../src/types/types';
-import { buildBaseRecommendations } from '../lib/recommend';
+import { buildBaseRecommendations } from '../../src/lib/recommend';
 import { getDestinationPool, withLiveImages } from '../lib/destinationPool';
 import { getWhyThisFitsBatch, isGeminiConfigured } from '../services/gemini';
 

@@ -7,7 +7,7 @@ import {
   buildTimingInsight,
   cheapestMonthData,
   leastCrowdedMonthData,
-} from '../lib/recommend';
+} from '../../src/lib/recommend';
 import { getDestinationById } from '../lib/destinationPool';
 import { getTripSummaryBatch, isGeminiConfigured } from '../services/gemini';
 

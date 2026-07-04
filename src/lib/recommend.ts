@@ -1,4 +1,4 @@
-import { MONTH_LABELS } from '../../src/data/constants';
+import { MONTH_LABELS } from '../data/constants';
 import type {
   BudgetRange,
   CostBreakdown,
@@ -8,7 +8,7 @@ import type {
   TimingInsight,
   TradeOffMode,
   TripRecommendation,
-} from '../../src/types/types';
+} from '../types/types';
 
 const CROWD_RANK: Record<CrowdLevel, number> = { Low: 0, Medium: 1, High: 2 };
 
