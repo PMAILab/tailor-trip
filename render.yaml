@@ -1,20 +1,25 @@
 # Render blueprint for TailorTrip's API only — the frontend is a separate
-# Netlify site (see netlify.toml). This service never runs `vite build`, so
-# server/index.ts's dist/index.html check never finds a build and the
-# service stays API-only (no static file serving).
+# Netlify site (see netlify.toml), which proxies /api/* to this service
+# server-to-server rather than the browser calling it cross-origin. That
+# proxy is what makes the session cookie first-party (Safari and an
+# increasing share of Chrome block third-party cookies outright, which
+# breaks a direct cross-origin setup even with correct CORS/SameSite
+# config). This service never runs `vite build`, so server/index.ts's
+# dist/index.html check never finds a build and the service stays API-only
+# (no static file serving).
 #
 # Notes
 # - Render injects PORT; the server reads process.env.PORT.
 # - The browser never talks to Supabase directly (auth is fully server-side).
 #   Fill every "sync: false" var in the dashboard.
-# - Set FRONTEND_ORIGIN to the Netlify site's https://<domain> — required for
-#   CORS (so the browser accepts the cross-origin session cookie) and for
-#   post-login redirects to land back on the frontend instead of here.
-# - Add this service's own https://<domain>/api/auth/google/callback to
-#   Supabase Dashboard → Auth → URL Configuration → Redirect URLs once the
-#   domain is known, and set APP_ORIGIN to that same https://<domain> below —
-#   without it the server falls back to inferring the origin from the
-#   request, which works too but explicit is more reliable.
+# - APP_ORIGIN must be the Netlify site's https://<domain>, NOT this
+#   service's own onrender.com URL — the browser navigates there directly
+#   for the Google OAuth round trip (Netlify's proxy then forwards it here),
+#   so that's the callback URL to allow-list in Supabase Dashboard → Auth →
+#   URL Configuration → Redirect URLs: https://<netlify-domain>/api/auth/google/callback
+# - FRONTEND_ORIGIN: same Netlify https://<domain> — only used as a CORS
+#   allow-list fallback for anyone hitting this API directly instead of
+#   through the Netlify proxy.
 services:
   - type: web
     name: tailortrip-api
