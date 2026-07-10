@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../state/AuthContext';
+import { useItinerary } from '../state/ItineraryContext';
 import { getProfile, updateProfile, type UserProfile } from '../lib/api';
 import { MOODS, BUDGET_RANGES } from '../data/constants';
 import Button from '../components/ui/Button';
@@ -41,6 +42,7 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function Profile() {
   const { user, isMock, signOut, updateLocalUser } = useAuth();
+  const { saved, savedLoading } = useItinerary();
   const navigate = useNavigate();
 
   const [status, setStatus] = useState<Status>('loading');
@@ -255,6 +257,46 @@ export default function Profile() {
                 )}
               </div>
             </div>
+          )}
+        </Card>
+
+        <Card className="p-8 lg:col-span-12">
+          <h2 className="mb-6 font-display text-headline-sm text-primary">Saved itineraries</h2>
+
+          {savedLoading && (
+            <div className="space-y-3">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="h-16 w-full animate-pulse rounded bg-surface-container-high" />
+              ))}
+            </div>
+          )}
+
+          {!savedLoading && saved.length === 0 && (
+            <p className="text-body-sm text-on-surface-variant">
+              Nothing saved yet. Generate an itinerary and tap Save to keep it here.
+            </p>
+          )}
+
+          {!savedLoading && saved.length > 0 && (
+            <ul className="flex flex-col divide-y divide-outline-variant">
+              {saved.map((s) => (
+                <li key={s.id}>
+                  <Link
+                    to={`/itinerary/${s.id}`}
+                    className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0 hover:text-accent"
+                  >
+                    <div>
+                      <p className="text-body-md text-on-surface">{s.inputs.destination}</p>
+                      <p className="text-body-sm text-on-surface-variant">
+                        {s.days.length} day{s.days.length === 1 ? '' : 's'} · saved{' '}
+                        {new Date(s.generatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <Icon name="chevron_right" className="shrink-0 text-[20px] text-on-surface-variant" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
           )}
         </Card>
       </div>
