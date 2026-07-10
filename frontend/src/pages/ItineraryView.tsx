@@ -67,6 +67,8 @@ export default function ItineraryView() {
     if (newId) {
       flash('Saved to your profile');
       navigate(`/itinerary/${newId}`, { replace: true });
+    } else {
+      flash('Could not save — sign in and try again');
     }
   }
 

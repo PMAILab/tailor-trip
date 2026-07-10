@@ -174,7 +174,8 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
       setSaved((prev) => [itinerary, ...prev]);
       track('itinerary_saved', { destination: current.inputs.destination, days: current.days.length });
       return itinerary.id;
-    } catch {
+    } catch (err) {
+      console.error('saveItinerary failed:', err);
       return null;
     }
   }, [current, isMock]);
