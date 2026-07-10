@@ -145,3 +145,4 @@ grant all on tailortrip.user_profiles to service_role;
 create policy "select own profile" on tailortrip.user_profiles for select using (auth.uid() = user_id);
 create policy "upsert own profile" on tailortrip.user_profiles for insert with check (auth.uid() = user_id);
 create policy "update own profile" on tailortrip.user_profiles for update using (auth.uid() = user_id);
+--At last expose all tables in DATA API settings in project settings
