@@ -5,15 +5,16 @@ import type {
   ItineraryDay,
   ActivitySlot,
   SlotKey,
-} from '../../src/types/types';
-import { peek, cacheSet } from '../lib/cache';
+} from '../types/types.js';
+import { peek, cacheSet } from '../lib/cache.js';
+import { env } from '../config/env.js';
 
 export const MODEL = 'gemini-2.5-flash';
 
 let client: GoogleGenAI | null = null;
 
 export function isGeminiConfigured(): boolean {
-  const key = process.env.GEMINI_API_KEY;
+  const key = env.geminiApiKey;
   return Boolean(key && key !== 'your-gemini-api-key' && key !== 'YOUR_API_KEY');
 }
 
@@ -22,7 +23,7 @@ export function isGeminiConfigured(): boolean {
 export function getClient(): GoogleGenAI | null {
   if (client) return client;
   if (!isGeminiConfigured()) return null;
-  client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+  client = new GoogleGenAI({ apiKey: env.geminiApiKey });
   return client;
 }
 

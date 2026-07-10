@@ -1,5 +1,5 @@
-import { getClient, MODEL } from './gemini';
-import { MOODS, BUDGET_RANGES } from '../../src/data/constants';
+import { getClient, MODEL } from './gemini.js';
+import { MOODS, BUDGET_RANGES } from '../data/constants.js';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';

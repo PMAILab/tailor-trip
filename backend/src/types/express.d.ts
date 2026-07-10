@@ -1,4 +1,4 @@
-import type { AuthUser } from '../lib/supabaseAuth';
+import type { AuthUser } from '../lib/supabaseAuth.js';
 
 declare global {
   namespace Express {

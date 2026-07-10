@@ -326,7 +326,7 @@ export function signOutRequest(): Promise<{ success: boolean }> {
 }
 
 // ─── Shortlist ────────────────────────────────────────────────────────
-// Real, server-persisted for signed-in users (see server/routes/shortlist.ts).
+// Real, server-persisted for signed-in users (see backend/src/routes/shortlist.ts).
 // Only ever called when not in mock mode — mock mode keeps using localStorage.
 
 export function getShortlist(): Promise<{ ids: string[] }> {
@@ -342,7 +342,7 @@ export function removeFromShortlist(destinationId: string): Promise<{ ids: strin
 }
 
 // ─── Profile ──────────────────────────────────────────────────────────
-// Real, server-persisted for signed-in users (see server/routes/profile.ts).
+// Real, server-persisted for signed-in users (see backend/src/routes/profile.ts).
 // Display name lives in Supabase Auth; everything else in user_profiles.
 
 export interface UserProfile {

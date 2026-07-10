@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient, type SupportedStorage, type User } from '@supabase/supabase-js';
+import { env } from '../config/env.js';
 
-const url = process.env.SUPABASE_URL;
-const anonKey = process.env.SUPABASE_ANON_KEY;
+const url = env.supabaseUrl;
+const anonKey = env.supabaseAnonKey;
 
 export const isSupabaseAuthConfigured = Boolean(url && anonKey);
 

@@ -1,15 +1,15 @@
 import { Router } from 'express';
-import { BUDGET_RANGES } from '../../src/data/constants';
-import type { Destination, MonthlyData, TradeOffMode } from '../../src/types/types';
+import { BUDGET_RANGES } from '../data/constants.js';
+import type { Destination, MonthlyData, TradeOffMode } from '../types/types.js';
 import {
   buildBaseReco,
   buildCostBreakdown,
   buildTimingInsight,
   cheapestMonthData,
   leastCrowdedMonthData,
-} from '../../src/lib/recommend';
-import { getDestinationById } from '../lib/destinationPool';
-import { getTripSummaryBatch, isGeminiConfigured } from '../services/gemini';
+} from '../lib/recommend.js';
+import { getDestinationById } from '../lib/destinationPool.js';
+import { getTripSummaryBatch, isGeminiConfigured } from '../services/gemini.js';
 
 const router = Router();
 

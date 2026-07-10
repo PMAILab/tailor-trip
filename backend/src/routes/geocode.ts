@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { reverseGeocode } from '../services/geocode';
+import { reverseGeocode } from '../services/geocode.js';
 
 const router = Router();
 

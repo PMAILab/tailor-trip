@@ -1,6 +1,6 @@
-import { getClient, MODEL } from './gemini';
-import { MOODS } from '../../src/data/constants';
-import type { Destination, MonthlyData, Sentiment, CrowdLevel, WeatherType } from '../../src/types/types';
+import { getClient, MODEL } from './gemini.js';
+import { MOODS } from '../data/constants.js';
+import type { Destination, MonthlyData, Sentiment, CrowdLevel, WeatherType } from '../types/types.js';
 
 const MOOD_IDS = MOODS.map((m) => m.id);
 const SENTIMENT_VALUES: Sentiment[] = [

@@ -1,4 +1,4 @@
-// Must be the very first import in server/index.ts. ES module imports are
+// Must be the very first import in src/index.ts. ES module imports are
 // all evaluated before the importing file's own top-level statements run, so
 // a `dotenv.config()` call inside index.ts's body — no matter where it's
 // textually placed — always runs *after* every other imported module (and

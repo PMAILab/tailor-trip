@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { streamCompareVerdict, type CompareDest } from '../services/gemini';
+import { streamCompareVerdict, type CompareDest } from '../services/gemini.js';
 
 const router = Router();
 

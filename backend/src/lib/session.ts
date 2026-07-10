@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { anonAuthClient, createAuthClient, mapSupabaseUser, type AuthUser } from './supabaseAuth';
-import { clearSessionCookies, setSessionCookies } from './cookies';
+import { anonAuthClient, createAuthClient, mapSupabaseUser, type AuthUser } from './supabaseAuth.js';
+import { clearSessionCookies, setSessionCookies } from './cookies.js';
 
 function cookies(req: Request): Record<string, string> {
   return (req.cookies ?? {}) as Record<string, string>;

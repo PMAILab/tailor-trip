@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { resolveUser } from '../lib/session';
+import { resolveUser } from '../lib/session.js';
 
 /** Attaches `req.user` and calls next() for a real, authenticated Supabase
  *  session; 401s otherwise. Mock mode never satisfies this (no tt_at/tt_rt

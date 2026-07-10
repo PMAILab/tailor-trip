@@ -1,4 +1,5 @@
-import { getOrSet } from '../lib/cache';
+import { getOrSet } from '../lib/cache.js';
+import { env } from '../config/env.js';
 
 const UNSPLASH_SEARCH_URL = 'https://api.unsplash.com/search/photos';
 const TIMEOUT_MS = 2500;
@@ -17,7 +18,7 @@ const FALLBACK_IMAGES = [
 ];
 
 export function isUnsplashConfigured(): boolean {
-  const key = process.env.UNSPLASH_ACCESS_KEY;
+  const key = env.unsplashAccessKey;
   return Boolean(key && key !== 'your-unsplash-access-key');
 }
 
@@ -36,7 +37,7 @@ async function fetchFromUnsplash(query: string, count: number): Promise<string[]
   try {
     const url = `${UNSPLASH_SEARCH_URL}?query=${encodeURIComponent(query)}&per_page=${count}&orientation=portrait`;
     const res = await fetch(url, {
-      headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` },
+      headers: { Authorization: `Client-ID ${env.unsplashAccessKey}` },
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`Unsplash request failed: ${res.status}`);

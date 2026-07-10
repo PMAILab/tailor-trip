@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateChatReply, type ChatMessage } from '../services/geminiChat';
+import { generateChatReply, type ChatMessage } from '../services/geminiChat.js';
 
 const router = Router();
 

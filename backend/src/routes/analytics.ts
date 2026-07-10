@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient.js';
+import { env } from '../config/env.js';
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.post('/', async (req, res) => {
   try {
     if (supabase) {
       await supabase.from('analytics_events').insert({ event_type: event, event_data: JSON.stringify(data) });
-    } else if (process.env.NODE_ENV !== 'production') {
+    } else if (!env.isProd) {
       console.log('[analytics]', event, data);
     }
   } catch (err) {

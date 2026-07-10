@@ -1,9 +1,9 @@
-import { DESTINATIONS } from '../../src/data/constants';
-import type { Destination } from '../../src/types/types';
-import { generateDestinationSet, toDestination } from '../services/geminiDestinations';
-import { resolveHeroImages } from '../services/images';
-import { getOrSet, peek, TtlStore } from './cache';
-import { supabase } from './supabase';
+import { DESTINATIONS } from '../data/constants.js';
+import type { Destination } from '../types/types.js';
+import { generateDestinationSet, toDestination } from '../services/geminiDestinations.js';
+import { resolveHeroImages } from '../services/images.js';
+import { getOrSet, peek, TtlStore } from './cache.js';
+import { supabase } from './supabaseClient.js';
 
 const SCHEMA_VERSION = 'v1';
 const SUPERSET_SIZE = 24; // over-fetched per pool bucket in one Gemini call — enough for ~2 pages of scroll

@@ -1,26 +1,27 @@
-import './env'; // must stay the first import — loads .env before anything else runs
+import './env.js'; // must stay the first import — loads .env before anything else runs
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import recommendationsRouter from './routes/recommendations';
-import tripsRouter from './routes/trips';
-import compareRouter from './routes/compare';
-import itineraryRouter from './routes/itinerary';
-import analyticsRouter from './routes/analytics';
-import authRouter from './routes/auth';
-import shortlistRouter from './routes/shortlist';
-import itinerariesRouter from './routes/itineraries';
-import chatRouter from './routes/chat';
-import profileRouter from './routes/profile';
-import geocodeRouter from './routes/geocode';
-import { isSupabaseAuthConfigured } from './lib/supabaseAuth';
-import { FRONTEND_ORIGIN } from './lib/origins';
+import { env } from './config/env.js';
+import recommendationsRouter from './routes/recommendations.js';
+import tripsRouter from './routes/trips.js';
+import compareRouter from './routes/compare.js';
+import itineraryRouter from './routes/itinerary.js';
+import analyticsRouter from './routes/analytics.js';
+import authRouter from './routes/auth.js';
+import shortlistRouter from './routes/shortlist.js';
+import itinerariesRouter from './routes/itineraries.js';
+import chatRouter from './routes/chat.js';
+import profileRouter from './routes/profile.js';
+import geocodeRouter from './routes/geocode.js';
+import { isSupabaseAuthConfigured } from './lib/supabaseAuth.js';
+import { FRONTEND_ORIGIN } from './lib/origins.js';
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = env.port;
 
 // Required so req.protocol/req.get('host') report the real public scheme
 // (https) behind Render's TLS-terminating reverse proxy — the OAuth
@@ -56,11 +57,11 @@ app.get('/api/health', (_req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     integrations: {
-      supabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+      supabase: Boolean(env.supabaseUrl && env.supabaseServiceRoleKey),
       authConfigured: isSupabaseAuthConfigured,
-      gemini: Boolean(process.env.GEMINI_API_KEY),
-      unsplash: Boolean(process.env.UNSPLASH_ACCESS_KEY),
-      affiliate: Boolean(process.env.TRAVELPAYOUTS_MARKER),
+      gemini: Boolean(env.geminiApiKey),
+      unsplash: Boolean(env.unsplashAccessKey),
+      affiliate: Boolean(env.travelpayoutsMarker),
     },
   });
 });

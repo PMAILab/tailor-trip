@@ -7,8 +7,9 @@
 # leave it unset so the frontend's fetch calls stay relative ("/api/...")
 # and go through this same-origin proxy instead of straight to Render.
 [build]
+  base = "frontend"
   command = "npm run build"
-  publish = "dist"
+  publish = "frontend/dist"
 
 # Proxies /api/* to the Render backend server-to-server (Netlify's edge
 # makes the request, not the browser) — so from the browser's perspective

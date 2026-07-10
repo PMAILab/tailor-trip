@@ -2,42 +2,16 @@
   "name": "tailortrip",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
+  "description": "Root dev-orchestration only — the frontend and backend are deployed as separate services (see netlify.toml / render.yaml) and each has its own package.json.",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "lint": "tsc --noEmit",
-    "server": "tsx server/index.ts",
-    "dev:all": "concurrently -n web,api -c cyan,magenta \"vite\" \"tsx watch server/index.ts\"",
-    "start": "NODE_ENV=production tsx server/index.ts"
-  },
-  "dependencies": {
-    "@google/genai": "^1.29.0",
-    "@supabase/supabase-js": "^2.99.2",
-    "@tailwindcss/vite": "^4.1.14",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
-    "lucide-react": "^0.546.0",
-    "motion": "^12.23.24",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-router-dom": "^7.13.1"
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "dev:all": "concurrently -n web,api -c cyan,magenta \"npm run dev --prefix frontend\" \"npm run dev --prefix backend\"",
+    "dev": "npm run dev --prefix frontend",
+    "server": "npm run dev --prefix backend",
+    "build": "npm run build --prefix frontend",
+    "lint": "npm run lint --prefix frontend && npm run typecheck --prefix backend"
   },
   "devDependencies": {
-    "@types/cookie-parser": "^1.4.10",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^4.17.21",
-    "@types/node": "^22.14.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^5.0.4",
-    "concurrently": "^9.2.1",
-    "tailwindcss": "^4.1.14",
-    "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "concurrently": "^9.2.1"
   }
 }

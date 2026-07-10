@@ -1,12 +1,12 @@
 import { Router, type Request } from 'express';
-import { supabase as supabaseService } from '../lib/supabase';
+import { supabase as supabaseService } from '../lib/supabaseClient.js';
 import {
   createAuthClient,
   isSupabaseAuthConfigured,
   mapSupabaseUser,
   type AuthUser,
-} from '../lib/supabaseAuth';
-import { resolveUser } from '../lib/session';
+} from '../lib/supabaseAuth.js';
+import { resolveUser } from '../lib/session.js';
 import {
   clearOAuthStateCookie,
   clearSessionCookies,
@@ -17,8 +17,8 @@ import {
   setMockCookie,
   setOAuthStateCookie,
   setSessionCookies,
-} from '../lib/cookies';
-import { APP_ORIGIN, FRONTEND_ORIGIN } from '../lib/origins';
+} from '../lib/cookies.js';
+import { APP_ORIGIN, FRONTEND_ORIGIN } from '../lib/origins.js';
 
 const router = Router();
 

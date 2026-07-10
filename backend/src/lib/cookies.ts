@@ -1,8 +1,9 @@
 import type { Response } from 'express';
 import type { Session } from '@supabase/supabase-js';
-import type { AuthUser } from './supabaseAuth';
+import type { AuthUser } from './supabaseAuth.js';
+import { env } from '../config/env.js';
 
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = env.isProd;
 
 /** No `domain` attribute — host-only cookies work correctly regardless of
  *  which origin the frontend is served from. `sameSite: 'none'` in prod is

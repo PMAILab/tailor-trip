@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { BUDGET_RANGES, DESTINATIONS, MOODS } from '../../src/data/constants';
-import type { TradeOffMode } from '../../src/types/types';
-import { buildBaseRecommendations } from '../../src/lib/recommend';
-import { getDestinationPool, withLiveImages } from '../lib/destinationPool';
-import { getWhyThisFitsBatch, isGeminiConfigured } from '../services/gemini';
+import { BUDGET_RANGES, DESTINATIONS, MOODS } from '../data/constants.js';
+import type { TradeOffMode } from '../types/types.js';
+import { buildBaseRecommendations } from '../lib/recommend.js';
+import { getDestinationPool, withLiveImages } from '../lib/destinationPool.js';
+import { getWhyThisFitsBatch, isGeminiConfigured } from '../services/gemini.js';
 
 const router = Router();
 

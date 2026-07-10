@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { supabase } from '../lib/supabase';
-import { requireUser } from '../middleware/requireUser';
-import { MOODS, BUDGET_RANGES } from '../../src/data/constants';
+import { supabase } from '../lib/supabaseClient.js';
+import { requireUser } from '../middleware/requireUser.js';
+import { MOODS, BUDGET_RANGES } from '../data/constants.js';
 
 const router = Router();
 router.use(requireUser);

@@ -4,7 +4,7 @@
 # proxy is what makes the session cookie first-party (Safari and an
 # increasing share of Chrome block third-party cookies outright, which
 # breaks a direct cross-origin setup even with correct CORS/SameSite
-# config). This service never runs `vite build`, so server/index.ts's
+# config). This service never runs `vite build`, so backend/src/index.ts's
 # dist/index.html check never finds a build and the service stays API-only
 # (no static file serving).
 #
@@ -24,8 +24,9 @@ services:
   - type: web
     name: tailortrip-api
     runtime: node
+    rootDir: backend
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: false

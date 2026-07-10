@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { BUDGET_RANGES } from '../../src/data/constants';
-import { generateItineraryDay, generateItineraryBatch, type ItineraryDayInput } from '../services/gemini';
+import { BUDGET_RANGES } from '../data/constants.js';
+import { generateItineraryDay, generateItineraryBatch, type ItineraryDayInput } from '../services/gemini.js';
 
 const router = Router();
 

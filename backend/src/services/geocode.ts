@@ -1,4 +1,4 @@
-import { getOrSet } from '../lib/cache';
+import { getOrSet } from '../lib/cache.js';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse';
 const TIMEOUT_MS = 3000;
