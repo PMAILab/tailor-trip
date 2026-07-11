@@ -15,7 +15,7 @@ budget* before you book — then hands you a day-by-day AI itinerary.
 
 Every AI and data surface has a graceful fallback, so the app runs and is
 testable with **zero keys configured**. It goes fully live when real keys are
-added to `.env`.
+added to `backend/.env`.
 
 ## Structure
 
