@@ -14,16 +14,19 @@ export const MODEL = 'gemini-3.1-pro-preview';
 let client: GoogleGenAI | null = null;
 
 export function isGeminiConfigured(): boolean {
-  const key = env.geminiApiKey;
-  return Boolean(key && key !== 'your-gemini-api-key' && key !== 'YOUR_API_KEY');
+  const key = env.vertexApiKey;
+  return Boolean(key && key !== 'your-vertex-api-key' && key !== 'YOUR_API_KEY');
 }
 
 /** Shared client singleton — reused by sibling AI services (e.g.
- *  geminiDestinations.ts) so there's one GoogleGenAI instance per process. */
+ *  geminiDestinations.ts) so there's one GoogleGenAI instance per process.
+ *  Routed through Vertex AI (via a Vertex Express API key) rather than the
+ *  Gemini Developer API, so quota is billed to the GCP project instead of
+ *  the free tier's ~20 requests/day per-key limit. */
 export function getClient(): GoogleGenAI | null {
   if (client) return client;
   if (!isGeminiConfigured()) return null;
-  client = new GoogleGenAI({ apiKey: env.geminiApiKey });
+  client = new GoogleGenAI({ apiKey: env.vertexApiKey, vertexai: true });
   return client;
 }
 

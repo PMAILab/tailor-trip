@@ -26,7 +26,7 @@ export const env = {
   supabaseUrl: optional('SUPABASE_URL'),
   supabaseAnonKey: optional('SUPABASE_ANON_KEY'),
   supabaseServiceRoleKey: optional('SUPABASE_SERVICE_ROLE_KEY'),
-  geminiApiKey: optional('GEMINI_API_KEY'),
+  vertexApiKey: optional('VERTEX_API_KEY'),
   unsplashAccessKey: optional('UNSPLASH_ACCESS_KEY'),
   travelpayoutsMarker: optional('TRAVELPAYOUTS_MARKER'),
 };

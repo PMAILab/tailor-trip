@@ -59,7 +59,7 @@ app.get('/api/health', (_req, res) => {
     integrations: {
       supabase: Boolean(env.supabaseUrl && env.supabaseServiceRoleKey),
       authConfigured: isSupabaseAuthConfigured,
-      gemini: Boolean(env.geminiApiKey),
+      gemini: Boolean(env.vertexApiKey),
       unsplash: Boolean(env.unsplashAccessKey),
       affiliate: Boolean(env.travelpayoutsMarker),
     },
