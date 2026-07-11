@@ -126,9 +126,17 @@ export default function Profile() {
       <div className="grid grid-cols-1 gap-gutter lg:grid-cols-12">
         <Card className="p-8 lg:col-span-5">
           <div className="flex items-center gap-4 border-b border-hairline pb-6">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-headline-sm text-on-primary">
-              {initial}
-            </div>
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt=""
+                className="h-14 w-14 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-headline-sm text-on-primary">
+                {initial}
+              </div>
+            )}
             <div>
               <p className="text-body-md text-on-surface">{user?.name ?? 'Traveller'}</p>
               <p className="text-body-sm text-on-surface-variant">{user?.email}</p>
