@@ -33,7 +33,6 @@ is not deployed.
 ```bash
 npm run install:all        # installs frontend/ and backend/ separately
 cp backend/.env.example backend/.env    # fill in keys to go live; omit to use fallbacks
-cp frontend/.env.example frontend/.env  # optional, only VITE_TRAVELPAYOUTS_MARKER
 npm run dev:all            # web on :3000, API on :3002
 ```
 
