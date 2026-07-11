@@ -8,6 +8,7 @@ import type { ItineraryDay, ItineraryInputs, SlotKey } from '../types/types';
 import Icon from '../components/Icon';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
+import { AI_LOADING_LINES, useRotatingLine } from '../components/TrustLoadingLine';
 
 const SLOT_LABELS: Record<SlotKey, string> = {
   morning: 'Morning',
@@ -38,9 +39,15 @@ export default function ItineraryView() {
     setToast(msg);
     window.setTimeout(() => setToast(null), 2200);
   };
+  // Called unconditionally (before the early returns below) since hooks
+  // can't be conditional — feeds both the header line and DaySkeleton
+  // while the itinerary AI call is in flight.
+  const loadingLine = useRotatingLine(AI_LOADING_LINES);
 
   // A direct reload/deep-link on a real saved itinerary shouldn't flash
   // "not found" before the saved-itineraries list has finished loading.
+  // This is a local-data wait, not an AI call, so it keeps the plain
+  // "Curating day 1…" default rather than the AI loading lines.
   const stillLoadingSaved = !isDraft && savedLoading;
   if (stillLoadingSaved) {
     return <DaySkeleton index={1} />;
@@ -83,14 +90,16 @@ export default function ItineraryView() {
         <h1 className="mb-3 font-display text-display-lg-mobile text-primary md:text-display-lg">
           {inputs?.destination ?? 'Planning your trip'}
         </h1>
-        <p className="text-body-lg text-on-surface-variant">
-          {generating && days.length === 0
-            ? 'Curating your itinerary…'
-            : days.length > 0
-              ? `${days.length} day${days.length > 1 ? 's' : ''}`
-              : 'Planning'}
-          {partyLabel && !generating ? `, ${partyLabel.toLowerCase()}` : ''}
-        </p>
+        {generating && days.length === 0 ? (
+          <p className="text-body-lg text-on-surface-variant" role="status">
+            {loadingLine}
+          </p>
+        ) : (
+          <p className="text-body-lg text-on-surface-variant">
+            {days.length > 0 ? `${days.length} day${days.length > 1 ? 's' : ''}` : 'Planning'}
+            {partyLabel && !generating ? `, ${partyLabel.toLowerCase()}` : ''}
+          </p>
+        )}
       </header>
 
       <div className="max-w-3xl">
@@ -105,7 +114,7 @@ export default function ItineraryView() {
           />
         ))}
 
-        {generating && <DaySkeleton index={days.length + 1} />}
+        {generating && <DaySkeleton index={days.length + 1} line={loadingLine} />}
 
         {isDraft && current.status === 'error' && (
           <p className={`text-body-md text-error ${days.length > 0 ? 'mt-8 rounded-xl border border-error/30 bg-error/10 p-4' : ''}`}>
@@ -297,7 +306,7 @@ function EditableText({
   );
 }
 
-function DaySkeleton({ index }: { index: number }) {
+function DaySkeleton({ index, line }: { index: number; line?: string }) {
   return (
     <section className="relative mb-16 border-l border-outline-variant pl-8 md:pl-12">
       <div className="absolute -left-3 top-0 bg-surface py-1 text-label-caps uppercase text-on-surface-variant">
@@ -310,7 +319,9 @@ function DaySkeleton({ index }: { index: number }) {
             <div key={i} className="h-16 w-full animate-pulse rounded bg-surface-container-high" />
           ))}
         </div>
-        <p className="mt-6 text-body-sm text-on-surface-variant">Curating day {index}…</p>
+        <p className="mt-6 text-body-sm text-on-surface-variant" role="status">
+          {line ?? `Curating day ${index}…`}
+        </p>
       </div>
     </section>
   );
