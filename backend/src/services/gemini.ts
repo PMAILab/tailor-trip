@@ -9,7 +9,7 @@ import type {
 import { peek, cacheSet } from '../lib/cache.js';
 import { env } from '../config/env.js';
 
-export const MODEL = 'gemini-2.5-flash';
+export const MODEL = 'gemini-3.1-pro-preview';
 
 let client: GoogleGenAI | null = null;
 
