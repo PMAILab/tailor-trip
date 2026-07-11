@@ -11,7 +11,7 @@ budget* before you book — then hands you a day-by-day AI itinerary.
 - **Frontend:** React 19 + Vite + TypeScript, Tailwind CSS v4, React Router
 - **Backend:** Express BFF (`/api`) — keeps the Gemini key server-side
 - **Data & Auth:** Supabase (Postgres + Auth: Google + email/password)
-- **AI:** Google Gemini
+- **AI:** Google Gemini (`gemini-3.1-pro-preview`)
 
 Every AI and data surface has a graceful fallback, so the app runs and is
 testable with **zero keys configured**. It goes fully live when real keys are
