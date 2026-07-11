@@ -1,6 +1,6 @@
 # TailorTrip
 
-An AI-powered smart travel optimizer. Don't just book. Optimize.
+An AI-powered smart travel optimizer for India. Don't just book. Optimize.
 
 Start with a mood, see where your money goes furthest, and travel when it is calm
 and cheap. TailorTrip helps you decide *where*, *when*, and *whether it fits your
