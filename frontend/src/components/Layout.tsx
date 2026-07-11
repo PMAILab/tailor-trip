@@ -65,6 +65,18 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
       </nav>
 
+      {/* ─── Mobile top bar ──────────────────────────────────────────── */}
+      {/* The bottom tab nav's "Home" goes to /discover (the mood picker),
+          not the landing page — without this, there was no way back to "/"
+          once a mobile user left it, since the desktop nav's wordmark link
+          is hidden below md. */}
+      <nav className="fixed top-0 left-0 z-50 flex h-20 w-full items-center border-b border-outline-variant bg-surface/80 px-margin-mobile backdrop-blur-md md:hidden">
+        <Link to="/" className="flex items-center gap-2 font-display text-2xl font-bold tracking-tight text-primary">
+          <img src="/icon.svg" alt="" className="h-7 w-7" />
+          TailorTrip
+        </Link>
+      </nav>
+
       <main className="flex w-full flex-grow flex-col">{children}</main>
 
       {/* ─── Desktop footer ──────────────────────────────────────────── */}
