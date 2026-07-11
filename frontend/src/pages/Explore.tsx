@@ -213,9 +213,19 @@ export default function Explore() {
           >
             All of India
           </button>
-          {(locationStatus === 'denied' || locationStatus === 'unavailable') && (
+          {locationStatus === 'denied' && (
             <p className="text-body-sm text-on-surface-variant">
               Location access isn&apos;t available — showing escapes from across India instead.
+            </p>
+          )}
+          {locationStatus === 'unavailable' && (
+            <p className="text-body-sm text-on-surface-variant">
+              Location isn&apos;t supported on this browser — showing escapes from across India instead.
+            </p>
+          )}
+          {locationStatus === 'error' && (
+            <p className="text-body-sm text-on-surface-variant">
+              Couldn&apos;t pin your location just now — tap Near me to try again.
             </p>
           )}
         </div>

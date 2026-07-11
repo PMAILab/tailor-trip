@@ -24,7 +24,11 @@ function loadLocalShortlist(): string[] {
 }
 
 export type LocationScope = 'near' | 'country';
-export type LocationStatus = 'idle' | 'pending' | 'granted' | 'denied' | 'unavailable';
+// 'denied' is a real permission refusal; 'error' covers everything else
+// (timeout, position unavailable) — collapsing them used to show the same
+// "not available" message for a user who tapped Allow but whose device
+// just took too long to resolve, with no way to tell the two apart.
+export type LocationStatus = 'idle' | 'pending' | 'granted' | 'denied' | 'unavailable' | 'error';
 
 interface AppState {
   selectedMood: string | null;
@@ -157,11 +161,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLocationStatus('granted');
         setLocationScope('near');
       },
-      () => {
-        setLocationStatus('denied');
+      (err) => {
+        // code 1 = PERMISSION_DENIED (a real refusal); codes 2/3 (POSITION_
+        // UNAVAILABLE / TIMEOUT) are transient — desktop Wi-Fi-based
+        // positioning routinely takes longer than the old 8s budget on the
+        // first request, so treat those as retryable, not a hard denial.
+        setLocationStatus(err.code === GeolocationPositionError.PERMISSION_DENIED ? 'denied' : 'error');
         setLocationScope('country');
       },
-      { timeout: 8000, maximumAge: 10 * 60 * 1000 },
+      { timeout: 15000, maximumAge: 10 * 60 * 1000 },
     );
   }, []);
 
