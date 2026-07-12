@@ -1,4 +1,4 @@
-import { getClient, MODEL } from './gemini.js';
+import { getClient, MODEL, extractJsonArray } from './gemini.js';
 import { MOODS } from '../data/constants.js';
 import type { Destination, MonthlyData, Sentiment, CrowdLevel, WeatherType } from '../types/types.js';
 
@@ -57,12 +57,6 @@ Each array item must be exactly this shape, with no extra fields:
 {"id": string (lowercase kebab-case slug of the place name, e.g. "coorg"), "name": string, "state": string (Indian state or union territory), "description": string (one plain-spoken sentence, no dashes), "sentiment": array of 1 to 3 values from exactly this set: ${JSON.stringify(SENTIMENT_VALUES)}, "moods": array of 1 to 3 values from exactly this set: ${JSON.stringify(MOOD_IDS)}, "durationDays": integer from 2 to 5, "baseCostPerDay": integer, typical mid-range per-person cost per day in INR, "imageQuery": string (2 to 4 word photo search phrase for this place), "lat": number (approximate latitude of the destination itself, decimal degrees), "lng": number (approximate longitude of the destination itself, decimal degrees)}
 
 Rules: real places only, no duplicates, "moods" and "sentiment" values must be copied exactly as spelled from the sets given, "lat"/"lng" must be your best real estimate for that specific place (not the reference coordinates above), valid JSON array only, no markdown code fences, no commentary before or after the array.`;
-}
-
-function extractJsonArray(text: string): string {
-  const start = text.indexOf('[');
-  const end = text.lastIndexOf(']');
-  return start >= 0 && end > start ? text.slice(start, end + 1) : '[]';
 }
 
 function slugify(name: string): string {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../lib/supabaseClient.js';
+import { requireDb, type Db } from '../lib/supabaseClient.js';
 import { requireUser } from '../middleware/requireUser.js';
 
 const router = Router();
@@ -9,29 +9,27 @@ router.use(requireUser);
 // table's RLS policies, is the real security boundary here, since this
 // route uses the service-role client (which bypasses RLS entirely).
 
+async function currentIds(db: Db, userId: string): Promise<string[]> {
+  const { data, error } = await db.from('shortlist_items').select('destination_id').eq('user_id', userId);
+  if (error) throw error;
+  return data.map((row) => row.destination_id as string);
+}
+
 router.get('/', async (req, res) => {
-  if (!supabase) {
-    res.status(503).json({ error: 'Database unavailable' });
-    return;
-  }
-  const { data, error } = await supabase
-    .from('shortlist_items')
-    .select('destination_id')
-    .eq('user_id', req.user!.id);
-  if (error) {
-    console.error('GET /api/shortlist failed:', error);
+  const db = requireDb(res);
+  if (!db) return;
+  try {
+    res.json({ ids: await currentIds(db, req.user!.id) });
+  } catch (err) {
+    console.error('GET /api/shortlist failed:', err);
     res.status(500).json({ error: 'Failed to load shortlist' });
-    return;
   }
-  res.json({ ids: data.map((row) => row.destination_id as string) });
 });
 
 router.put('/:destinationId', async (req, res) => {
-  if (!supabase) {
-    res.status(503).json({ error: 'Database unavailable' });
-    return;
-  }
-  const { error } = await supabase
+  const db = requireDb(res);
+  if (!db) return;
+  const { error } = await db
     .from('shortlist_items')
     .upsert({ user_id: req.user!.id, destination_id: req.params.destinationId }, { onConflict: 'user_id,destination_id' });
   if (error) {
@@ -39,23 +37,17 @@ router.put('/:destinationId', async (req, res) => {
     res.status(500).json({ error: 'Failed to save' });
     return;
   }
-  const { data, error: selectError } = await supabase
-    .from('shortlist_items')
-    .select('destination_id')
-    .eq('user_id', req.user!.id);
-  if (selectError) {
+  try {
+    res.json({ ids: await currentIds(db, req.user!.id) });
+  } catch {
     res.status(500).json({ error: 'Failed to load shortlist' });
-    return;
   }
-  res.json({ ids: data.map((row) => row.destination_id as string) });
 });
 
 router.delete('/:destinationId', async (req, res) => {
-  if (!supabase) {
-    res.status(503).json({ error: 'Database unavailable' });
-    return;
-  }
-  const { error } = await supabase
+  const db = requireDb(res);
+  if (!db) return;
+  const { error } = await db
     .from('shortlist_items')
     .delete()
     .eq('user_id', req.user!.id)
@@ -65,15 +57,11 @@ router.delete('/:destinationId', async (req, res) => {
     res.status(500).json({ error: 'Failed to remove' });
     return;
   }
-  const { data, error: selectError } = await supabase
-    .from('shortlist_items')
-    .select('destination_id')
-    .eq('user_id', req.user!.id);
-  if (selectError) {
+  try {
+    res.json({ ids: await currentIds(db, req.user!.id) });
+  } catch {
     res.status(500).json({ error: 'Failed to load shortlist' });
-    return;
   }
-  res.json({ ids: data.map((row) => row.destination_id as string) });
 });
 
 export default router;

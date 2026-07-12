@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../lib/supabaseClient.js';
+import { requireDb } from '../lib/supabaseClient.js';
 import { requireUser } from '../middleware/requireUser.js';
 import type { ItineraryDay, ItineraryInputs, SavedItinerary } from '../types/types.js';
 
@@ -22,11 +22,9 @@ function toSavedItinerary(row: ItineraryRow): SavedItinerary {
 // route uses the service-role client (which bypasses RLS entirely).
 
 router.get('/', async (req, res) => {
-  if (!supabase) {
-    res.status(503).json({ error: 'Database unavailable' });
-    return;
-  }
-  const { data, error } = await supabase
+  const db = requireDb(res);
+  if (!db) return;
+  const { data, error } = await db
     .from('itineraries')
     .select('id, inputs, days, generated_at')
     .eq('user_id', req.user!.id)
@@ -40,10 +38,8 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  if (!supabase) {
-    res.status(503).json({ error: 'Database unavailable' });
-    return;
-  }
+  const db = requireDb(res);
+  if (!db) return;
   const inputs = req.body?.inputs as ItineraryInputs | undefined;
   const days = req.body?.days as ItineraryDay[] | undefined;
   if (!inputs || !Array.isArray(days) || days.length === 0) {
@@ -51,7 +47,7 @@ router.post('/', async (req, res) => {
     return;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('itineraries')
     .insert({ user_id: req.user!.id, inputs, days })
     .select('id, inputs, days, generated_at')

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../lib/supabaseClient.js';
+import { supabase, requireDb } from '../lib/supabaseClient.js';
 import { requireUser } from '../middleware/requireUser.js';
 import { MOODS, BUDGET_RANGES } from '../data/constants.js';
 
@@ -45,10 +45,8 @@ router.get('/', async (req, res) => {
 });
 
 router.put('/', async (req, res) => {
-  if (!supabase) {
-    res.status(503).json({ error: 'Database unavailable' });
-    return;
-  }
+  const db = requireDb(res);
+  if (!db) return;
 
   const body = req.body ?? {};
   const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : undefined;
@@ -65,7 +63,7 @@ router.put('/', async (req, res) => {
         : undefined;
 
   if (name) {
-    const { error } = await supabase.auth.admin.updateUserById(req.user!.id, {
+    const { error } = await db.auth.admin.updateUserById(req.user!.id, {
       user_metadata: { full_name: name },
     });
     if (error) {
@@ -81,14 +79,14 @@ router.put('/', async (req, res) => {
   if (preferredMoods !== undefined) patch.preferred_moods = preferredMoods;
   if (defaultBudgetId !== undefined) patch.default_budget_id = defaultBudgetId;
 
-  const { error: upsertError } = await supabase.from('user_profiles').upsert(patch, { onConflict: 'user_id' });
+  const { error: upsertError } = await db.from('user_profiles').upsert(patch, { onConflict: 'user_id' });
   if (upsertError) {
     console.error('PUT /api/profile upsert failed:', upsertError);
     res.status(500).json({ error: 'Failed to save profile' });
     return;
   }
 
-  const { data, error: selectError } = await supabase
+  const { data, error: selectError } = await db
     .from('user_profiles')
     .select('home_city, home_state, preferred_moods, default_budget_id')
     .eq('user_id', req.user!.id)
