@@ -6,6 +6,20 @@ import { cacheSet, getOrSet, peek, TtlStore } from './cache.js';
 import { supabase } from './supabaseClient.js';
 
 const SCHEMA_VERSION = 'v1';
+
+// ─── TEMPORARY: Unsplash production review ──────────────────────────────────
+// Pins the feed to the 24-destination curated catalog and turns off pool
+// growth for the duration of the Unsplash production application review.
+//
+// Why: every photo a reviewer sees has to carry photographer attribution, and
+// the demo API tier allows only 50 photo lookups per hour. One fixed set of 24
+// costs exactly 24 lookups, is cached for a week (see images.ts CACHE_TTL_MS),
+// and — unlike a generated pool — cannot rotate, expire mid-review, or fall
+// back to uncredited placeholder photos if a generation fails. The AI
+// generation path is left fully intact underneath, just not taken.
+//
+// TO RESTORE after approval: set this to false. Nothing else to undo.
+const UNSPLASH_REVIEW_MODE = true;
 // Generation cost is dominated by output volume, and it degrades badly with
 // batch size: measured against gemini-3.1-pro-preview, 6 destinations takes
 // ~23s, 12 takes ~33s, and 24 in a single call does not finish inside two
@@ -90,6 +104,7 @@ function extensionStateFor(poolKey: string): ExtensionState {
  *  after the current pool is fully served, so scroll doesn't dead-end just
  *  because more places haven't been generated *yet*. */
 function canGrow(poolKey: string): boolean {
+  if (UNSPLASH_REVIEW_MODE) return false; // pool is pinned at 24 — see UNSPLASH_REVIEW_MODE
   if (poolKey.startsWith('static:')) return false;
   const state = extensionState.get(poolKey);
   if (state?.inFlight) return true;
@@ -308,6 +323,17 @@ export async function getDestinationPool(input: {
   poolKey?: string;
   lookahead?: number;
 }): Promise<DestinationPoolResult> {
+  // See UNSPLASH_REVIEW_MODE: serve the curated 24 and never generate, so the
+  // photo set stays fixed, fully attributed, and inside the hourly API budget.
+  if (UNSPLASH_REVIEW_MODE) {
+    return {
+      destinations: withLiveImages(DESTINATIONS),
+      fallback: true,
+      poolKey: `static:${SCHEMA_VERSION}:review`,
+      canGrow: false,
+    };
+  }
+
   if (input.poolKey) {
     // A "static:" key means an earlier request in this session was served the
     // fallback because generation hadn't finished yet — which is the norm on
