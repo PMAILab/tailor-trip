@@ -2,7 +2,7 @@ import { DESTINATIONS } from '../data/constants.js';
 import type { Destination } from '../types/types.js';
 import { generateDestinationSet, toDestination } from '../services/geminiDestinations.js';
 import { resolveHeroImages } from '../services/images.js';
-import { getOrSet, peek, TtlStore } from './cache.js';
+import { cacheSet, getOrSet, peek, TtlStore } from './cache.js';
 import { supabase } from './supabaseClient.js';
 
 const SCHEMA_VERSION = 'v1';
@@ -16,10 +16,22 @@ const BACKGROUND_TIMEOUT_MS = 25000; // hard ceiling for the continuation once t
 const POOL_TTL_MS = 6 * 60 * 60 * 1000;
 const EMPTY_POOL_TTL_MS = 15 * 60 * 1000; // retry window for a failed/quota-exhausted generation — long enough not to hammer a hard-down quota, short enough to self-heal
 const BY_ID_TTL_MS = 24 * 60 * 60 * 1000;
+// Extra AI batches fetched on demand once a pool bucket is close to running
+// out mid-scroll, so infinite scroll keeps surfacing new AI places instead of
+// dead-ending at SUPERSET_SIZE. Capped hard: each extension is one more
+// Gemini call on top of the initial pool fetch, and the daily quota (see
+// above) can't sustain unlimited ones per bucket.
+const EXTENSION_SIZE = 12;
+const MAX_EXTENSIONS = 2; // + the initial fetch = at most 3 Gemini calls per bucket per POOL_TTL_MS window
 
 // Seeded once per generated destination so shortlist/trip-detail/compare
 // lookups keep working after the pool that produced it has rotated or expired.
 const byIdCache = new TtlStore<Destination>(BY_ID_TTL_MS);
+// Tracks how many extension batches a pool bucket has already spent, plus an
+// in-flight guard so concurrent requests near the end of the pool don't each
+// kick off their own duplicate Gemini call. Shares the pool's own TTL so a
+// bucket that rotates out also gets a clean slate.
+const extensionState = new TtlStore<{ count: number; extending: boolean }>(POOL_TTL_MS);
 
 function bucket(n: number): number {
   return Math.round(n / 0.5) * 0.5;
@@ -99,6 +111,62 @@ function assemblePoolWithTimeout(scope: 'near' | 'country', lat?: number, lng?: 
   return assemblePool(scope, lat, lng, controller.signal).finally(() => clearTimeout(timer));
 }
 
+/** Fire-and-forget top-up of an existing pool bucket: generates one more
+ *  batch of AI destinations (excluding everything already in the pool or the
+ *  static catalog) and appends it to the cached array under the same
+ *  `poolKey`, so the *next* page request sees a bigger pool without the
+ *  current request waiting on it. No-ops past `MAX_EXTENSIONS` or while a
+ *  prior extension for this bucket is still in flight. */
+function extendPoolInBackground(poolKey: string, scope: 'near' | 'country', lat?: number, lng?: number): void {
+  if (poolKey.startsWith('static:')) return;
+
+  let state = extensionState.get(poolKey);
+  if (!state) {
+    state = { count: 0, extending: false };
+    extensionState.set(poolKey, state);
+  }
+  if (state.extending || state.count >= MAX_EXTENSIONS) return;
+
+  state.extending = true;
+  void (async () => {
+    try {
+      const current = peek<Destination[]>(poolKey);
+      if (!current) return; // bucket already rotated out from under us
+
+      const raw = await generateDestinationSet({
+        scope,
+        lat,
+        lng,
+        excludeIds: [...DESTINATIONS.map((d) => d.id), ...current.map((d) => d.id)],
+        count: EXTENSION_SIZE,
+      });
+      if (raw.length === 0) return;
+
+      const withImages = await Promise.all(
+        raw.map(async (r) => {
+          const heroImages = await resolveHeroImages(r.imageQuery, 2);
+          return toDestination(r, heroImages);
+        }),
+      );
+      for (const d of withImages) {
+        byIdCache.set(d.id, d);
+        persistDestination(d);
+      }
+
+      // Re-peek rather than append to the stale `current` closed over above —
+      // another request may have read/refreshed the bucket while this call
+      // was in flight (e.g. a normal TTL-driven regeneration).
+      const latest = peek<Destination[]>(poolKey) ?? current;
+      cacheSet(poolKey, [...latest, ...withImages], POOL_TTL_MS);
+      state.count += 1;
+    } catch (err) {
+      console.error('Pool extension failed:', err);
+    } finally {
+      state.extending = false;
+    }
+  })();
+}
+
 export interface DestinationPoolResult {
   destinations: Destination[];
   fallback: boolean;
@@ -118,12 +186,19 @@ export interface DestinationPoolResult {
  *  otherwise round into a different 0.5° bucket mid-session, and
  *  regenerating would risk showing different AI content than page 1 did. If
  *  that pool has since expired/been evicted, this degrades to static rather
- *  than risk an inconsistent mid-scroll switch to different AI content. */
+ *  than risk an inconsistent mid-scroll switch to different AI content.
+ *
+ *  `nextPageEnd` (a lookahead cursor — typically the *next* page's end, not
+ *  the current one) lets this trigger a background top-up once the caller is
+ *  about to run near the end of the cached superset, ahead of the user
+ *  actually hitting it — so scrolling past the initial batch keeps surfacing
+ *  new AI destinations instead of just running out (see `extendPoolInBackground`). */
 export async function getDestinationPool(input: {
   scope: 'near' | 'country';
   lat?: number;
   lng?: number;
   poolKey?: string;
+  nextPageEnd?: number;
 }): Promise<DestinationPoolResult> {
   if (input.poolKey) {
     if (input.poolKey.startsWith('static:')) {
@@ -131,6 +206,11 @@ export async function getDestinationPool(input: {
     }
     const cached = peek<Destination[]>(input.poolKey);
     if (cached && cached.length > 0) {
+      // Within one page of running out — top up now so the *next* request
+      // (not this one) finds a bigger pool waiting for it.
+      if (input.nextPageEnd !== undefined && cached.length - input.nextPageEnd <= 0) {
+        extendPoolInBackground(input.poolKey, input.scope, input.lat, input.lng);
+      }
       return { destinations: cached, fallback: false, poolKey: input.poolKey };
     }
     return { destinations: withLiveImages(DESTINATIONS), fallback: true, poolKey: `static:${input.poolKey}` };

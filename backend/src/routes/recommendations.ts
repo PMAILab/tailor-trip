@@ -27,7 +27,10 @@ router.post('/', async (req, res) => {
     // point to sort distance from, so this stays undefined for scope=country.
     const userCoords = scope === 'near' && lat !== undefined && lng !== undefined ? { lat, lng } : undefined;
 
-    const poolResult = await getDestinationPool({ scope, lat, lng, poolKey });
+    // Look one page past the one being served: triggers the background pool
+    // top-up (see destinationPool.ts) before the user actually hits the end,
+    // not after — a request-in-flight buffer, not a reactive one.
+    const poolResult = await getDestinationPool({ scope, lat, lng, poolKey, nextPageEnd: offset + PAGE_SIZE * 2 });
     let recoPage = buildBaseRecommendations({
       mood,
       budget,
