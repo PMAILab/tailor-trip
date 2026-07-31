@@ -27,10 +27,19 @@ router.post('/', async (req, res) => {
     // point to sort distance from, so this stays undefined for scope=country.
     const userCoords = scope === 'near' && lat !== undefined && lng !== undefined ? { lat, lng } : undefined;
 
-    // Look one page past the one being served: triggers the background pool
-    // top-up (see destinationPool.ts) before the user actually hits the end,
-    // not after — a request-in-flight buffer, not a reactive one.
-    const poolResult = await getDestinationPool({ scope, lat, lng, poolKey, nextPageEnd: offset + PAGE_SIZE * 2 });
+    // pageEnd is this page's own boundary — if the cached pool has already
+    // run out by then, getDestinationPool waits briefly for an extension
+    // rather than answering stale. lookaheadEnd is one page further out —
+    // triggers that extension early, before the user actually hits the end,
+    // so it's usually ready well before pageEnd ever needs to wait on it.
+    const poolResult = await getDestinationPool({
+      scope,
+      lat,
+      lng,
+      poolKey,
+      pageEnd: offset + PAGE_SIZE,
+      lookaheadEnd: offset + PAGE_SIZE * 2,
+    });
     let recoPage = buildBaseRecommendations({
       mood,
       budget,
@@ -72,13 +81,21 @@ router.post('/', async (req, res) => {
     const reasons = await getWhyThisFitsBatch(reasonInputs, moodLabel);
     const recommendations = recoPage.items.map((r) => ({ ...r, aiReason: reasons[r.destination.id] }));
 
+    // hasMore also stays true while the AI pool could still grow (an
+    // extension in flight or budget unspent), not just while this response's
+    // snapshot of it has unseen items — otherwise a request that lands right
+    // as an extension is landing reports false a request too early and the
+    // frontend drops the scroll sentinel for good. Never applies once we've
+    // fallen back to the static catalog, which can't grow.
+    const stillFilling = !usedStaticPool && poolResult.canGrow;
+
     // One boolean covers two independent signals (curated-vs-personalized
     // destination pool, and templated-vs-AI blurb copy) — a deliberate
     // simplification for now; split it if the UI ever needs to tell them apart.
     res.json({
       recommendations,
       fallback: usedStaticPool || !isGeminiConfigured(),
-      hasMore: offset + recoPage.items.length < recoPage.total,
+      hasMore: offset + recoPage.items.length < recoPage.total || stillFilling,
       poolKey: resolvedPoolKey,
     });
   } catch (err) {
