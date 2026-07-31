@@ -1,6 +1,6 @@
 import { getClient, MODEL, extractJsonArray } from './gemini.js';
 import { MOODS } from '../data/constants.js';
-import type { Destination, MonthlyData, Sentiment, CrowdLevel, WeatherType } from '../types/types.js';
+import type { Destination, ImageCredit, MonthlyData, Sentiment, CrowdLevel, WeatherType } from '../types/types.js';
 
 const MOOD_IDS = MOODS.map((m) => m.id);
 const SENTIMENT_VALUES: Sentiment[] = [
@@ -214,12 +214,17 @@ export function synthesizeMonthlyData(id: string, baseCostPerDay: number, durati
   });
 }
 
-export function toDestination(raw: RawAiDestination, heroImages: string[]): Destination {
+export function toDestination(
+  raw: RawAiDestination,
+  heroImages: string[],
+  heroCredits: ImageCredit[] = [],
+): Destination {
   return {
     id: raw.id,
     name: raw.name,
     state: raw.state,
     heroImages,
+    heroCredits,
     sentiment: raw.sentiment,
     description: raw.description,
     moods: raw.moods,

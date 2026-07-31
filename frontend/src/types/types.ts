@@ -42,11 +42,27 @@ export interface MonthlyData {
   weather: WeatherType;
 }
 
+/** Photographer credit for an Unsplash-sourced photo. The Unsplash API
+ *  Guidelines require the photographer and Unsplash to be credited, with
+ *  links back carrying UTM parameters, anywhere the photo is displayed —
+ *  production API access is granted on that basis. */
+export interface ImageCredit {
+  photographer: string;
+  /** Photographer's Unsplash profile, UTM parameters already applied. */
+  profileUrl: string;
+  /** Unsplash's own download-tracking endpoint for this photo. Pinged when
+   *  the photo is actually shown to a user, per the guidelines. */
+  downloadLocation?: string;
+}
+
 export interface Destination {
   id: string;
   name: string;
   state: string;
   heroImages: string[];
+  /** Parallel to `heroImages` by index. Absent for the hand-authored
+   *  catalog's hardcoded photos, which predate API-sourced imagery. */
+  heroCredits?: ImageCredit[];
   sentiment: Sentiment[];
   description: string;
   moods: string[]; // mood ids this destination matches

@@ -5,6 +5,7 @@ import { useApp } from '../state/AppContext';
 import { track } from '../lib/analytics';
 import { formatINR } from '../lib/format';
 import Icon from './Icon';
+import PhotoCredit from './PhotoCredit';
 
 /** Smart Destination Card: total cost, timing badges, and an AI reason it fits. */
 export default function TripCard({ rec }: { rec: TripRecommendation }) {
@@ -68,6 +69,9 @@ export default function TripCard({ rec }: { rec: TripRecommendation }) {
           </div>
         </div>
       </Link>
+      {/* Outside the Link above: this contains its own links, and anchors
+          can't nest. Overlays the bottom edge of the h-64 hero image. */}
+      <PhotoCredit credit={d.heroCredits?.[0]} />
 
       <button
         type="button"

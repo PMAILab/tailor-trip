@@ -1,7 +1,7 @@
 import { DESTINATIONS } from '../data/constants.js';
 import type { Destination } from '../types/types.js';
 import { DESTINATION_THEMES, generateDestinationSet, toDestination } from '../services/geminiDestinations.js';
-import { resolveHeroImages } from '../services/images.js';
+import { resolveHeroImages, type HeroImages } from '../services/images.js';
 import { cacheSet, getOrSet, peek, TtlStore } from './cache.js';
 import { supabase } from './supabaseClient.js';
 
@@ -121,9 +121,9 @@ function poolKeyFor(input: { scope: 'near' | 'country'; lat?: number; lng?: numb
 export function withLiveImages(destinations: Destination[]): Destination[] {
   return destinations.map((d) => {
     const query = `${d.name}, ${d.state}`;
-    const live = peek<string[]>(`unsplash:${query.trim().toLowerCase()}:2`);
+    const live = peek<HeroImages>(`unsplash:${query.trim().toLowerCase()}:2`);
     if (!live) void resolveHeroImages(query, 2);
-    return live ? { ...d, heroImages: live } : d;
+    return live ? { ...d, heroImages: live.urls, heroCredits: live.credits } : d;
   });
 }
 
@@ -144,8 +144,8 @@ function persistDestination(d: Destination): void {
 async function materialize(raw: Awaited<ReturnType<typeof generateDestinationSet>>): Promise<Destination[]> {
   const withImages = await Promise.all(
     raw.map(async (r) => {
-      const heroImages = await resolveHeroImages(r.imageQuery, 2);
-      return toDestination(r, heroImages);
+      const hero = await resolveHeroImages(r.imageQuery, 2);
+      return toDestination(r, hero.urls, hero.credits);
     }),
   );
   for (const d of withImages) {

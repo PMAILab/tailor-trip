@@ -1,9 +1,27 @@
 import { getOrSet } from '../lib/cache.js';
 import { env } from '../config/env.js';
+import type { ImageCredit } from '../types/types.js';
 
 const UNSPLASH_SEARCH_URL = 'https://api.unsplash.com/search/photos';
 const TIMEOUT_MS = 2500;
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // photos don't go stale — cache for a week
+
+// The Unsplash API Guidelines require every link back to unsplash.com to
+// carry these, naming the application — it's how they attribute referral
+// traffic, and complying with it is a condition of production access.
+const UTM = 'utm_source=TailorTrip&utm_medium=referral';
+export const UNSPLASH_HOME_URL = `https://unsplash.com/?${UTM}`;
+
+function withUtm(profileUrl: string): string {
+  return `${profileUrl}${profileUrl.includes('?') ? '&' : '?'}${UTM}`;
+}
+
+export interface HeroImages {
+  urls: string[];
+  /** Parallel to `urls`. Empty for the hardcoded fallbacks below, whose
+   *  photographers aren't known to us. */
+  credits: ImageCredit[];
+}
 
 // Generic scenic-India stock photos, reused from the existing hand-picked
 // catalog, for when Unsplash is unconfigured, times out, or errors — hero
@@ -22,16 +40,29 @@ export function isUnsplashConfigured(): boolean {
   return Boolean(key && key !== 'your-unsplash-access-key');
 }
 
-function fallbackImages(count: number): string[] {
+function fallbackImages(count: number): HeroImages {
   const shuffled = [...FALLBACK_IMAGES].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.max(1, count));
+  return { urls: shuffled.slice(0, Math.max(1, count)), credits: [] };
 }
 
 interface UnsplashPhoto {
   urls?: { regular?: string };
+  links?: { download_location?: string };
+  user?: { name?: string; username?: string; links?: { html?: string } };
 }
 
-async function fetchFromUnsplash(query: string, count: number): Promise<string[]> {
+/** Pings Unsplash's download endpoint for a photo. Required by the API
+ *  Guidelines whenever a photo is surfaced to a user — it's how photographers
+ *  see their work being used, and Unsplash audits for it. Fire-and-forget:
+ *  this must never delay or fail a page render. */
+function trackUsage(downloadLocation: string): void {
+  void fetch(`${downloadLocation}${downloadLocation.includes('?') ? '&' : '?'}client_id=${env.unsplashAccessKey}`)
+    .catch(() => {
+      /* attribution telemetry is best-effort; never surface it */
+    });
+}
+
+async function fetchFromUnsplash(query: string, count: number): Promise<HeroImages> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -42,10 +73,24 @@ async function fetchFromUnsplash(query: string, count: number): Promise<string[]
     });
     if (!res.ok) throw new Error(`Unsplash request failed: ${res.status}`);
     const data = (await res.json()) as { results?: UnsplashPhoto[] };
-    const urls = (data.results ?? [])
-      .map((p) => p.urls?.regular)
-      .filter((u): u is string => Boolean(u));
-    return urls.length > 0 ? urls : fallbackImages(count);
+
+    const urls: string[] = [];
+    const credits: ImageCredit[] = [];
+    for (const photo of data.results ?? []) {
+      const src = photo.urls?.regular;
+      const profile = photo.user?.links?.html;
+      // A photo we can't attribute is one we can't legitimately show, so
+      // it's dropped rather than displayed uncredited.
+      if (!src || !profile) continue;
+      urls.push(src);
+      credits.push({
+        photographer: photo.user?.name?.trim() || photo.user?.username?.trim() || 'Unsplash photographer',
+        profileUrl: withUtm(profile),
+        downloadLocation: photo.links?.download_location,
+      });
+      if (photo.links?.download_location) trackUsage(photo.links.download_location);
+    }
+    return urls.length > 0 ? { urls, credits } : fallbackImages(count);
   } catch (err) {
     // Includes AbortError from the timeout — never let an image failure
     // propagate, this must always resolve.
@@ -62,7 +107,7 @@ async function fetchFromUnsplash(query: string, count: number): Promise<string[]
  *  one popular pool of 20+ destinations could otherwise burn most of that
  *  budget in a single page load. Falls back to a generic scenic-India pool
  *  when unconfigured or on any failure; never rejects. */
-export async function resolveHeroImages(query: string, count = 2): Promise<string[]> {
+export async function resolveHeroImages(query: string, count = 2): Promise<HeroImages> {
   if (!isUnsplashConfigured()) return fallbackImages(count);
   const key = `unsplash:${query.trim().toLowerCase()}:${count}`;
   return getOrSet(key, CACHE_TTL_MS, () => fetchFromUnsplash(`${query} India`, count));

@@ -10,6 +10,7 @@ import Icon from '../components/Icon';
 import Button from '../components/ui/Button';
 import ErrorState from '../components/ui/ErrorState';
 import EmptyState from '../components/ui/EmptyState';
+import PhotoCredit from '../components/PhotoCredit';
 
 type Status = 'loading' | 'error' | 'done';
 
@@ -196,11 +197,14 @@ export default function Compare() {
               </th>
               {selectedRecs.map((r) => (
                 <th key={r.destination.id} className={`${cell} align-bottom`}>
-                  <img
-                    src={r.destination.heroImages[0]}
-                    alt={r.destination.name}
-                    className="mb-4 h-40 w-full rounded-lg object-cover"
-                  />
+                  <div className="relative mb-4 overflow-hidden rounded-lg">
+                    <img
+                      src={r.destination.heroImages[0]}
+                      alt={r.destination.name}
+                      className="h-40 w-full object-cover"
+                    />
+                    <PhotoCredit credit={r.destination.heroCredits?.[0]} imageHeightClass="h-40" />
+                  </div>
                   <h2 className="mb-1 font-display text-headline-sm text-primary">{r.destination.name}</h2>
                   <p className="mb-4 text-body-sm text-on-surface-variant">{r.destination.state}</p>
                   <button

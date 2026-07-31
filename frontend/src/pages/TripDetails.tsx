@@ -10,6 +10,7 @@ import Button from '../components/ui/Button';
 import ErrorState from '../components/ui/ErrorState';
 import EmptyState from '../components/ui/EmptyState';
 import MonthPriceChart from '../components/MonthPriceChart';
+import PhotoCredit from '../components/PhotoCredit';
 
 type Status = 'loading' | 'error' | 'notfound' | 'done';
 
@@ -89,6 +90,7 @@ export default function TripDetails() {
           </div>
           <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl border border-outline-variant">
             <img src={d.heroImages[0]} alt={`${d.name}, ${d.state}`} className="h-full w-full object-cover" />
+            <PhotoCredit credit={d.heroCredits?.[0]} imageHeightClass="h-full" />
           </div>
           <div className="border-t border-outline-variant pt-6">
             <p className="mb-1 text-label-caps uppercase text-on-surface-variant">Total estimated cost</p>
