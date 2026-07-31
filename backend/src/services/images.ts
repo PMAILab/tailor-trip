@@ -5,6 +5,7 @@ import type { ImageCredit } from '../types/types.js';
 const UNSPLASH_SEARCH_URL = 'https://api.unsplash.com/search/photos';
 const TIMEOUT_MS = 2500;
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // photos don't go stale — cache for a week
+const FALLBACK_CACHE_TTL_MS = 5 * 60 * 1000; // retry window after a rate-limited or failed lookup
 
 // The Unsplash API Guidelines require every link back to unsplash.com to
 // carry these, naming the application — it's how they attribute referral
@@ -110,5 +111,14 @@ async function fetchFromUnsplash(query: string, count: number): Promise<HeroImag
 export async function resolveHeroImages(query: string, count = 2): Promise<HeroImages> {
   if (!isUnsplashConfigured()) return fallbackImages(count);
   const key = `unsplash:${query.trim().toLowerCase()}:${count}`;
-  return getOrSet(key, CACHE_TTL_MS, () => fetchFromUnsplash(`${query} India`, count));
+  // Only a real, attributable result earns the week-long TTL. A rate-limited
+  // or failed lookup resolves to the uncredited generic pool, and caching
+  // *that* for a week would strand the destination on an unattributable photo
+  // long after the quota recovered — which is both a worse experience and an
+  // Unsplash guideline violation. Short TTL lets it self-heal instead.
+  return getOrSet(
+    key,
+    (value: HeroImages) => (value.credits.length > 0 ? CACHE_TTL_MS : FALLBACK_CACHE_TTL_MS),
+    () => fetchFromUnsplash(`${query} India`, count),
+  );
 }
