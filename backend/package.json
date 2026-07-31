@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
+    "@google/genai": "^2.15.0",
     "@supabase/supabase-js": "^2.99.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
