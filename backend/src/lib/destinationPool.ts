@@ -1,60 +1,100 @@
 import { DESTINATIONS } from '../data/constants.js';
 import type { Destination } from '../types/types.js';
-import { generateDestinationSet, toDestination } from '../services/geminiDestinations.js';
+import { DESTINATION_THEMES, generateDestinationSet, toDestination } from '../services/geminiDestinations.js';
 import { resolveHeroImages } from '../services/images.js';
 import { cacheSet, getOrSet, peek, TtlStore } from './cache.js';
 import { supabase } from './supabaseClient.js';
 
 const SCHEMA_VERSION = 'v1';
-const SUPERSET_SIZE = 24; // over-fetched per pool bucket in one Gemini call — enough for ~2 pages of scroll
-const REQUEST_TIMEOUT_MS = 3500; // user-facing: never make the page wait longer than this
-const BACKGROUND_TIMEOUT_MS = 25000; // hard ceiling for the continuation once the request has bailed — generous so a merely-slow Gemini call (e.g. free-tier throttling) can still finish and populate the cache instead of aborting; still bounded so a genuinely hung call can't wedge this pool bucket forever
-// Free-tier Gemini is capped at ~20 requests/day total across the whole app,
-// so pool generation (one call per cache bucket) has to be spent carefully —
-// a 1h TTL could burn the entire daily quota from location buckets alone.
-// 6h still refreshes content a few times a day while keeping this affordable.
+// Generation cost is dominated by output volume, and it degrades badly with
+// batch size: measured against gemini-3.1-pro-preview, 6 destinations takes
+// ~23s, 12 takes ~33s, and 24 in a single call does not finish inside two
+// minutes. So a pool is assembled from several small batches issued in
+// parallel (each themed, see DESTINATION_THEMES) rather than one big call —
+// same superset size, but bounded by the slowest single batch instead of the
+// sum of them.
+const BATCH_SIZE = 8;
+const INITIAL_BATCHES = 3; // 3 x 8 = 24 destinations, in roughly the time one batch takes
+const REQUEST_TIMEOUT_MS = 3500; // first paint: never make the initial page wait longer than this
+// A "load more" request is a different bargain from the first paint: the user
+// already has a full screen of cards and sees skeleton placeholders, so it's
+// worth waiting out an actual generation rather than answering "no more
+// results" and killing the scroll for good.
+const EXTENSION_WAIT_MS = 30000;
+// Hard ceiling for a background generation once the request itself has bailed
+// — comfortably past the measured batch latency so a merely-slow call still
+// lands and warms the cache, while a genuinely hung one can't wedge the
+// bucket forever.
+const BACKGROUND_TIMEOUT_MS = 90000;
+// Generation is routed through Vertex AI (see services/gemini.ts), so it is
+// billed to the GCP project rather than capped by the Gemini Developer API's
+// ~20-requests/day free tier. A 6h TTL is therefore about content freshness,
+// not quota survival: it refreshes a few times a day without regenerating a
+// bucket for every visitor.
 const POOL_TTL_MS = 6 * 60 * 60 * 1000;
-const EMPTY_POOL_TTL_MS = 15 * 60 * 1000; // retry window for a failed/quota-exhausted generation — long enough not to hammer a hard-down quota, short enough to self-heal
+const EMPTY_POOL_TTL_MS = 15 * 60 * 1000; // retry window for a failed generation — long enough not to hammer a hard-down backend, short enough to self-heal
 const BY_ID_TTL_MS = 24 * 60 * 60 * 1000;
-// Extra AI batches fetched on demand once a pool bucket is close to running
-// out mid-scroll, so infinite scroll keeps surfacing new AI places instead of
-// dead-ending at SUPERSET_SIZE. Capped hard: each extension is one more
-// Gemini call on top of the initial pool fetch, and the daily quota (see
-// above) can't sustain unlimited ones per bucket.
-const EXTENSION_SIZE = 12;
-const MAX_EXTENSIONS = 2; // + the initial fetch = at most 3 Gemini calls per bucket per POOL_TTL_MS window
+// Ceiling on how far a bucket will keep growing as the user scrolls. A
+// cost/sanity limit rather than a quota one — nobody scrolls 120 destination
+// cards, and India's supply of distinct, genuinely recommendable destinations
+// thins out well before that anyway.
+const MAX_POOL_SIZE = 120;
 
 // Seeded once per generated destination so shortlist/trip-detail/compare
 // lookups keep working after the pool that produced it has rotated or expired.
 const byIdCache = new TtlStore<Destination>(BY_ID_TTL_MS);
-// Tracks how many extension batches a pool bucket has already spent, plus the
-// in-flight promise itself (not just a boolean) so a request that lands right
-// on the boundary can await the extension that's already running instead of
-// firing a duplicate one or answering stale. Shares the pool's own TTL so a
-// bucket that rotates out also gets a clean slate.
+// Holds each bucket's in-flight extension promise (not just a boolean) so a
+// request that runs out of destinations can await the extension already
+// running instead of firing a duplicate one or answering stale. Shares the
+// pool's own TTL so a bucket that rotates out also gets a clean slate.
+// `exhausted` latches when a generation comes back with nothing new to add,
+// which is the real end of the road for a bucket — the model has run out of
+// distinct places to suggest, and retrying just burns calls to no effect.
 interface ExtensionState {
-  count: number;
   inFlight: Promise<void> | null;
+  exhausted: boolean;
 }
 const extensionState = new TtlStore<ExtensionState>(POOL_TTL_MS);
+// Buckets whose first generation is still running. While a key is in here the
+// static catalog is being served only as a placeholder, so callers should
+// keep offering "more" — an upgrade to real AI destinations is imminent.
+const warmingPools = new Set<string>();
+
+/** Starts (or joins) the initial generation for a bucket, tracking it in
+ *  `warmingPools` for as long as it runs. */
+function warmPool(liveKey: string, scope: 'near' | 'country', lat?: number, lng?: number): Promise<Destination[]> {
+  const generation = getOrSet(
+    liveKey,
+    (value: Destination[]) => (value.length > 0 ? POOL_TTL_MS : EMPTY_POOL_TTL_MS),
+    () => {
+      warmingPools.add(liveKey);
+      return assemblePoolWithTimeout(scope, lat, lng);
+    },
+  );
+  void generation.finally(() => warmingPools.delete(liveKey)).catch(() => {});
+  return generation;
+}
 
 function extensionStateFor(poolKey: string): ExtensionState {
   let state = extensionState.get(poolKey);
   if (!state) {
-    state = { count: 0, inFlight: null };
+    state = { inFlight: null, exhausted: false };
     extensionState.set(poolKey, state);
   }
   return state;
 }
 
-/** Whether this bucket could still grow — either an extension is running
- *  right now or the per-bucket budget isn't spent yet. `hasMore` on the route
- *  side stays true while this is true, even if the current page has run out
- *  of already-fetched items, so scroll doesn't dead-end mid-extension. */
+/** Whether this bucket could still grow: an extension is running right now,
+ *  or there's headroom under MAX_POOL_SIZE and generation hasn't already come
+ *  up empty. `hasMore` on the route side stays true while this is true even
+ *  after the current pool is fully served, so scroll doesn't dead-end just
+ *  because more places haven't been generated *yet*. */
 function canGrow(poolKey: string): boolean {
+  if (poolKey.startsWith('static:')) return false;
   const state = extensionState.get(poolKey);
-  if (!state) return true; // budget untouched — nothing to say no to yet
-  return state.inFlight !== null || state.count < MAX_EXTENSIONS;
+  if (state?.inFlight) return true;
+  if (state?.exhausted) return false;
+  return (peek<Destination[]>(poolKey)?.length ?? 0) < MAX_POOL_SIZE;
 }
 
 function bucket(n: number): number {
@@ -99,34 +139,74 @@ function persistDestination(d: Destination): void {
   })();
 }
 
-async function assemblePool(
-  scope: 'near' | 'country',
-  lat: number | undefined,
-  lng: number | undefined,
-  signal: AbortSignal,
-): Promise<Destination[]> {
-  const raw = await generateDestinationSet({
-    scope,
-    lat,
-    lng,
-    excludeIds: DESTINATIONS.map((d) => d.id),
-    count: SUPERSET_SIZE,
-    signal,
-  });
-  if (raw.length === 0) return [];
-
+/** Resolves photos for a batch of raw AI candidates, seeds the by-id and
+ *  Supabase caches, and returns them as full Destinations. */
+async function materialize(raw: Awaited<ReturnType<typeof generateDestinationSet>>): Promise<Destination[]> {
   const withImages = await Promise.all(
     raw.map(async (r) => {
       const heroImages = await resolveHeroImages(r.imageQuery, 2);
       return toDestination(r, heroImages);
     }),
   );
-
   for (const d of withImages) {
     byIdCache.set(d.id, d);
     persistDestination(d);
   }
   return withImages;
+}
+
+/** Runs `count` themed generation batches concurrently and merges them,
+ *  dropping any id already known (the batches can't see each other's output,
+ *  so overlap is deduped here rather than prevented). `themeOffset` rotates
+ *  which themes are used, so a later top-up explores a different slice of the
+ *  travel space than the initial pool did. A batch that fails or times out
+ *  contributes nothing without taking its siblings down with it. */
+async function generateBatches(
+  scope: 'near' | 'country',
+  lat: number | undefined,
+  lng: number | undefined,
+  knownIds: Set<string>,
+  count: number,
+  themeOffset: number,
+  signal: AbortSignal,
+): Promise<Destination[]> {
+  const excludeIds = [...knownIds];
+  const batches = await Promise.all(
+    Array.from({ length: count }, (_, i) =>
+      generateDestinationSet({
+        scope,
+        lat,
+        lng,
+        excludeIds,
+        count: BATCH_SIZE,
+        theme: DESTINATION_THEMES[(themeOffset + i) % DESTINATION_THEMES.length],
+        signal,
+      }).catch((err) => {
+        console.error('Destination batch failed:', err);
+        return [];
+      }),
+    ),
+  );
+
+  const merged: Awaited<ReturnType<typeof generateDestinationSet>> = [];
+  const seen = new Set(knownIds);
+  for (const batch of batches) {
+    for (const candidate of batch) {
+      if (seen.has(candidate.id)) continue;
+      seen.add(candidate.id);
+      merged.push(candidate);
+    }
+  }
+  return merged.length > 0 ? materialize(merged) : [];
+}
+
+function assemblePool(
+  scope: 'near' | 'country',
+  lat: number | undefined,
+  lng: number | undefined,
+  signal: AbortSignal,
+): Promise<Destination[]> {
+  return generateBatches(scope, lat, lng, new Set(DESTINATIONS.map((d) => d.id)), INITIAL_BATCHES, 0, signal);
 }
 
 function assemblePoolWithTimeout(scope: 'near' | 'country', lat?: number, lng?: number): Promise<Destination[]> {
@@ -139,51 +219,47 @@ function assemblePoolWithTimeout(scope: 'near' | 'country', lat?: number, lng?: 
  *  destinations (excluding everything already in the pool or the static
  *  catalog) and appends it to the cached array under the same `poolKey`.
  *  Idempotent per bucket — concurrent callers all get back the same in-flight
- *  promise instead of each starting their own Gemini call. No-ops past
- *  `MAX_EXTENSIONS`. Callers decide whether to await this (a request right on
- *  the boundary, see `getDestinationPool`) or fire it and move on (a request
- *  just inside the lookahead margin, still has data to serve now). */
+ *  promise instead of each starting their own Gemini call. Callers decide
+ *  whether to await it (a request that has run out of destinations to serve)
+ *  or fire it and move on (a request still inside the lookahead margin). */
 function extendPool(poolKey: string, scope: 'near' | 'country', lat?: number, lng?: number): Promise<void> {
-  if (poolKey.startsWith('static:')) return Promise.resolve();
+  if (!canGrow(poolKey)) return Promise.resolve();
 
   const state = extensionStateFor(poolKey);
   if (state.inFlight) return state.inFlight;
-  if (state.count >= MAX_EXTENSIONS) return Promise.resolve();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), BACKGROUND_TIMEOUT_MS);
 
   const run = (async () => {
     try {
       const current = peek<Destination[]>(poolKey);
       if (!current) return; // bucket already rotated out from under us
 
-      const raw = await generateDestinationSet({
-        scope,
-        lat,
-        lng,
-        excludeIds: [...DESTINATIONS.map((d) => d.id), ...current.map((d) => d.id)],
-        count: EXTENSION_SIZE,
-      });
-      if (raw.length === 0) return;
+      const known = new Set([...DESTINATIONS.map((d) => d.id), ...current.map((d) => d.id)]);
+      // Rotate onto themes the pool hasn't drawn from yet, so a top-up
+      // explores a different slice of the country than what's already shown.
+      const themeOffset = Math.floor(current.length / BATCH_SIZE);
+      const fresh = await generateBatches(scope, lat, lng, known, 1, themeOffset, controller.signal);
 
-      const withImages = await Promise.all(
-        raw.map(async (r) => {
-          const heroImages = await resolveHeroImages(r.imageQuery, 2);
-          return toDestination(r, heroImages);
-        }),
-      );
-      for (const d of withImages) {
-        byIdCache.set(d.id, d);
-        persistDestination(d);
+      // A batch that comes back with nothing genuinely new means the model has
+      // run out of distinct places for this bucket — latch that rather than
+      // burning another call on the next scroll to learn the same thing.
+      if (fresh.length === 0) {
+        state.exhausted = true;
+        return;
       }
 
       // Re-peek rather than append to the stale `current` closed over above —
       // another request may have read/refreshed the bucket while this call
       // was in flight (e.g. a normal TTL-driven regeneration).
       const latest = peek<Destination[]>(poolKey) ?? current;
-      cacheSet(poolKey, [...latest, ...withImages], POOL_TTL_MS);
-      state.count += 1;
+      const have = new Set(latest.map((d) => d.id));
+      cacheSet(poolKey, [...latest, ...fresh.filter((d) => !have.has(d.id))], POOL_TTL_MS);
     } catch (err) {
       console.error('Pool extension failed:', err);
     } finally {
+      clearTimeout(timer);
       state.inFlight = null;
     }
   })();
@@ -218,58 +294,52 @@ export interface DestinationPoolResult {
  *  that pool has since expired/been evicted, this degrades to static rather
  *  than risk an inconsistent mid-scroll switch to different AI content.
  *
- *  `pageEnd` (offset + limit of the page actually being served) and
- *  `lookaheadEnd` (typically one page further out) drive two things: a
- *  background top-up once the caller is within `lookaheadEnd` of the cached
- *  superset's end — ahead of actually hitting it, so new AI destinations are
- *  usually ready by the time they're needed — and, if `pageEnd` itself has
- *  already run past what's cached (the lookahead didn't win the race), a
- *  short bounded wait for that same extension so this request has a real
- *  shot at returning the newly grown pool instead of reporting
- *  `hasMore: false` moments before it lands (see `extendPool`). */
+ *  `lookahead` (how many more destinations the caller expects to need beyond
+ *  what it has already consumed) kicks off a background top-up before the
+ *  pool actually runs dry, so fresh AI destinations are usually cached by the
+ *  time the next scroll asks for them. A caller that has genuinely run out
+ *  should instead await `growDestinationPool` and re-read (see the route),
+ *  since only the caller knows whether its own mood/budget filtering left it
+ *  short. */
 export async function getDestinationPool(input: {
   scope: 'near' | 'country';
   lat?: number;
   lng?: number;
   poolKey?: string;
-  pageEnd?: number;
-  lookaheadEnd?: number;
+  lookahead?: number;
 }): Promise<DestinationPoolResult> {
   if (input.poolKey) {
-    if (input.poolKey.startsWith('static:')) {
-      return { destinations: withLiveImages(DESTINATIONS), fallback: true, poolKey: input.poolKey, canGrow: false };
-    }
-    let cached = peek<Destination[]>(input.poolKey);
+    // A "static:" key means an earlier request in this session was served the
+    // fallback because generation hadn't finished yet — which is the norm on
+    // a cold bucket, since generation takes far longer than the first-paint
+    // race allows. Retry the real bucket rather than pinning the whole
+    // session to the static catalog: upgrading mid-scroll is safe now that
+    // pagination excludes already-seen ids instead of using a numeric offset,
+    // so the switch appends unseen places rather than reshuffling the feed.
+    const liveKey = input.poolKey.replace(/^static:/, '');
+    const cached = peek<Destination[]>(liveKey);
     if (cached && cached.length > 0) {
-      const pageEnd = input.pageEnd ?? 0;
-      const lookaheadEnd = input.lookaheadEnd ?? pageEnd;
-
-      if (pageEnd > cached.length) {
-        // Already past the cached end — this page would otherwise come back
-        // empty right as the pool is growing. Give the extension (already
-        // triggered by an earlier request's lookahead, or started fresh here)
-        // a bounded window to land before answering with what we've got.
-        const inFlight = extendPool(input.poolKey, input.scope, input.lat, input.lng);
-        const timeout = new Promise<void>((resolve) => setTimeout(resolve, REQUEST_TIMEOUT_MS));
-        await Promise.race([inFlight, timeout]);
-        cached = peek<Destination[]>(input.poolKey) ?? cached;
-      } else if (cached.length <= lookaheadEnd) {
-        // Within the lookahead margin — top up now so a *later* request
-        // (ideally before it ever hits the branch above) finds more waiting.
-        void extendPool(input.poolKey, input.scope, input.lat, input.lng);
+      if (input.lookahead !== undefined && input.lookahead > 0) {
+        void extendPool(liveKey, input.scope, input.lat, input.lng);
       }
-
-      return { destinations: cached, fallback: false, poolKey: input.poolKey, canGrow: canGrow(input.poolKey) };
+      return { destinations: cached, fallback: false, poolKey: liveKey, canGrow: canGrow(liveKey) };
     }
-    return { destinations: withLiveImages(DESTINATIONS), fallback: true, poolKey: `static:${input.poolKey}`, canGrow: false };
+
+    // Still nothing generated. Keep the generation going (or start it) so a
+    // later scroll can upgrade, and serve the static catalog meanwhile —
+    // reporting canGrow so the feed doesn't declare itself finished at 24
+    // static places while real ones are minutes from being ready.
+    void warmPool(liveKey, input.scope, input.lat, input.lng);
+    return {
+      destinations: withLiveImages(DESTINATIONS),
+      fallback: true,
+      poolKey: `static:${liveKey}`,
+      canGrow: warmingPools.has(liveKey),
+    };
   }
 
   const poolKey = poolKeyFor(input);
-  const generation = getOrSet(
-    poolKey,
-    (value: Destination[]) => (value.length > 0 ? POOL_TTL_MS : EMPTY_POOL_TTL_MS),
-    () => assemblePoolWithTimeout(input.scope, input.lat, input.lng),
-  );
+  const generation = warmPool(poolKey, input.scope, input.lat, input.lng);
 
   const timeout = new Promise<null>((resolve) => {
     setTimeout(() => resolve(null), REQUEST_TIMEOUT_MS);
@@ -279,7 +349,47 @@ export async function getDestinationPool(input: {
   if (superset && superset.length > 0) {
     return { destinations: superset, fallback: false, poolKey, canGrow: canGrow(poolKey) };
   }
-  return { destinations: withLiveImages(DESTINATIONS), fallback: true, poolKey: `static:${poolKey}`, canGrow: false };
+  return {
+    destinations: withLiveImages(DESTINATIONS),
+    fallback: true,
+    poolKey: `static:${poolKey}`,
+    canGrow: warmingPools.has(poolKey),
+  };
+}
+
+/** Awaitable pool top-up for a caller that has actually run out of
+ *  destinations to serve and would otherwise have to answer "no more
+ *  results". Bounded by `EXTENSION_WAIT_MS` so a slow or hung generation
+ *  degrades to "nothing new *this* request" rather than hanging the response;
+ *  the generation itself keeps running in the background either way, so the
+ *  next scroll usually finds it already cached. Resolves to the pool as it
+ *  stands afterwards — grown if the call landed in time, unchanged if not. */
+export async function growDestinationPool(input: {
+  poolKey: string;
+  scope: 'near' | 'country';
+  lat?: number;
+  lng?: number;
+}): Promise<DestinationPoolResult> {
+  const liveKey = input.poolKey.replace(/^static:/, '');
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, EXTENSION_WAIT_MS));
+
+  // On a bucket that has never generated, the thing worth waiting for is the
+  // initial pool, not a top-up of a pool that doesn't exist yet.
+  const pending = peek<Destination[]>(liveKey)
+    ? extendPool(liveKey, input.scope, input.lat, input.lng)
+    : warmPool(liveKey, input.scope, input.lat, input.lng).then(() => undefined, () => undefined);
+  await Promise.race([pending, timeout]);
+
+  const grown = peek<Destination[]>(liveKey);
+  if (grown && grown.length > 0) {
+    return { destinations: grown, fallback: false, poolKey: liveKey, canGrow: canGrow(liveKey) };
+  }
+  return {
+    destinations: withLiveImages(DESTINATIONS),
+    fallback: true,
+    poolKey: `static:${liveKey}`,
+    canGrow: warmingPools.has(liveKey),
+  };
 }
 
 /** Resolves a single destination by id for trip-details/shortlist/compare,

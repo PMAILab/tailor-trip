@@ -34,12 +34,32 @@ export interface RawAiDestination {
   lng?: number;
 }
 
+/** Themes used to fan one pool out across several smaller, concurrent
+ *  generation calls. Output volume — not latency per call — is what makes
+ *  generation slow (a single 24-destination request takes minutes, while 8
+ *  takes ~20s), so pools are assembled from parallel batches instead. Giving
+ *  each batch its own theme keeps them from converging on the same handful of
+ *  famous places, which a plain "give me 8 more" prompt reliably does. */
+export const DESTINATION_THEMES = [
+  'beaches, islands and coastal towns',
+  'hill stations, mountains and high-altitude escapes',
+  'heritage sites, forts, temples and historic towns',
+  'cities, nightlife, food and modern culture',
+  'offbeat villages, wilderness, forests and wildlife',
+  'backwaters, lakes, rivers and waterfalls',
+  'wellness, yoga, spiritual retreats and quiet stays',
+  'deserts, ravines and dramatic open landscapes',
+] as const;
+
 export interface GenerateDestinationSetInput {
   scope: 'near' | 'country';
   lat?: number;
   lng?: number;
   excludeIds: string[];
   count: number;
+  /** Optional slice of the travel space this batch should stick to — see
+   *  DESTINATION_THEMES. Omitted means "anything goes". */
+  theme?: string;
   signal?: AbortSignal;
 }
 
@@ -50,6 +70,8 @@ function buildPrompt(input: GenerateDestinationSetInput): string {
       : 'spread across different Indian states, showing a variety of experiences (coast, hills, heritage, cities, offbeat)';
 
   return `You are a travel data assistant for an India-only trip planner. Return ONLY a JSON array of exactly ${input.count} real, distinct travel destinations in India, ${locationClause}.
+
+${input.theme ? `Focus this set on: ${input.theme}. Favour genuinely varied, lesser-known places over the most obvious tourist names.` : ''}
 
 ${input.excludeIds.length ? `Do not repeat any of these already-shown ids: ${input.excludeIds.join(', ')}.` : ''}
 

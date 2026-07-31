@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { BUDGET_RANGES, DESTINATIONS, MOODS } from '../data/constants.js';
 import type { TradeOffMode } from '../types/types.js';
 import { buildBaseRecommendations } from '../lib/recommend.js';
-import { getDestinationPool, withLiveImages } from '../lib/destinationPool.js';
+import { getDestinationPool, growDestinationPool, withLiveImages } from '../lib/destinationPool.js';
 import { getWhyThisFitsBatch, isGeminiConfigured } from '../services/gemini.js';
 
 const router = Router();
@@ -17,9 +17,15 @@ router.post('/', async (req, res) => {
     const scope: 'near' | 'country' = req.body?.scope === 'near' ? 'near' : 'country';
     const lat: number | undefined = Number.isFinite(req.body?.lat) ? req.body.lat : undefined;
     const lng: number | undefined = Number.isFinite(req.body?.lng) ? req.body.lng : undefined;
-    const page: number = Number.isInteger(req.body?.page) && req.body.page >= 0 ? req.body.page : 0;
     const poolKey: string | undefined = typeof req.body?.poolKey === 'string' ? req.body.poolKey : undefined;
-    const offset = page * PAGE_SIZE;
+    // Ids the client already has on screen. This, not a page number, is what
+    // drives pagination: the pool grows as the user scrolls (AI top-ups) and
+    // is re-scored on every request, so a numeric offset into it would skip
+    // destinations and repeat others as the ordering shifts underneath.
+    const seenIds: string[] = Array.isArray(req.body?.seenIds)
+      ? req.body.seenIds.filter((id: unknown): id is string => typeof id === 'string')
+      : [];
+    const isFirstPage = seenIds.length === 0;
 
     const budget = budgetId ? (BUDGET_RANGES.find((b) => b.id === budgetId) ?? null) : null;
     const moodLabel = mood ? (MOODS.find((m) => m.id === mood)?.label ?? mood) : 'a great trip';
@@ -27,52 +33,44 @@ router.post('/', async (req, res) => {
     // point to sort distance from, so this stays undefined for scope=country.
     const userCoords = scope === 'near' && lat !== undefined && lng !== undefined ? { lat, lng } : undefined;
 
-    // pageEnd is this page's own boundary — if the cached pool has already
-    // run out by then, getDestinationPool waits briefly for an extension
-    // rather than answering stale. lookaheadEnd is one page further out —
-    // triggers that extension early, before the user actually hits the end,
-    // so it's usually ready well before pageEnd ever needs to wait on it.
-    const poolResult = await getDestinationPool({
-      scope,
-      lat,
-      lng,
-      poolKey,
-      pageEnd: offset + PAGE_SIZE,
-      lookaheadEnd: offset + PAGE_SIZE * 2,
-    });
-    let recoPage = buildBaseRecommendations({
-      mood,
-      budget,
-      tradeOff,
-      pool: poolResult.destinations,
-      offset,
-      limit: PAGE_SIZE,
-      userCoords,
-    });
+    const buildPage = (pool: Parameters<typeof buildBaseRecommendations>[0]['pool']) =>
+      buildBaseRecommendations({ mood, budget, tradeOff, pool, excludeIds: seenIds, limit: PAGE_SIZE, userCoords });
+
+    // A non-zero lookahead asks the pool to start topping itself up in the
+    // background now, so the *next* scroll usually finds new places already
+    // cached rather than waiting on a generation.
+    let poolResult = await getDestinationPool({ scope, lat, lng, poolKey, lookahead: isFirstPage ? 0 : PAGE_SIZE });
+    let recoPage = buildPage(poolResult.destinations);
     let usedStaticPool = poolResult.fallback;
     let resolvedPoolKey = poolResult.poolKey;
+
+    // Ran out of unseen destinations, but this bucket can still grow: wait for
+    // it rather than reporting "no more results" — the latter is permanent,
+    // since the frontend drops its scroll sentinel on it. This is what keeps
+    // scrolling productive past the initial generated batch; it covers the
+    // case where a narrow mood/budget filters the pool down to far fewer
+    // matches than it holds, and the case where the user has exhausted the
+    // static placeholder while the first real generation is still running.
+    if (recoPage.items.length === 0 && poolResult.canGrow) {
+      poolResult = await growDestinationPool({ poolKey: resolvedPoolKey, scope, lat, lng });
+      recoPage = buildPage(poolResult.destinations);
+      usedStaticPool = poolResult.fallback;
+      resolvedPoolKey = poolResult.poolKey;
+    }
 
     // The AI pool is a small, location-specific slice — if this mood/budget
     // combination happens to empty it out on the very first page, fall back
     // to the static catalog (which reliably covers all moods) instead of
-    // showing nothing. Only on page 0: for page > 0, an empty result just
+    // showing nothing. Only on the first page: later on, an empty result just
     // means "reached the end of this pool," which hasMore already reflects.
-    if (page === 0 && recoPage.total === 0 && !poolResult.fallback) {
-      recoPage = buildBaseRecommendations({
-        mood,
-        budget,
-        tradeOff,
-        pool: withLiveImages(DESTINATIONS),
-        offset,
-        limit: PAGE_SIZE,
-        userCoords,
-      });
+    if (isFirstPage && recoPage.items.length === 0 && !usedStaticPool) {
+      recoPage = buildPage(withLiveImages(DESTINATIONS));
       usedStaticPool = true;
       resolvedPoolKey = `static:${poolResult.poolKey}`;
     }
 
     // One Gemini call for every cache-missed card on this page, not one call
-    // per card — the free-tier daily quota can't sustain 10 calls per load.
+    // per card — 10 calls per load would be needlessly slow and expensive.
     const reasonInputs = recoPage.items.map((r) => ({
       id: r.destination.id,
       destination: r.destination,
@@ -81,13 +79,17 @@ router.post('/', async (req, res) => {
     const reasons = await getWhyThisFitsBatch(reasonInputs, moodLabel);
     const recommendations = recoPage.items.map((r) => ({ ...r, aiReason: reasons[r.destination.id] }));
 
-    // hasMore also stays true while the AI pool could still grow (an
-    // extension in flight or budget unspent), not just while this response's
-    // snapshot of it has unseen items — otherwise a request that lands right
-    // as an extension is landing reports false a request too early and the
-    // frontend drops the scroll sentinel for good. Never applies once we've
-    // fallen back to the static catalog, which can't grow.
-    const stillFilling = !usedStaticPool && poolResult.canGrow;
+    // hasMore stays true while the pool could still grow, not just while this
+    // response's snapshot of it has unseen matches left — otherwise the feed
+    // ends the moment the current batch is used up, even though more places
+    // are only a generation away. canGrow covers both an AI pool that can be
+    // topped up and a static placeholder whose real pool is still generating.
+    //
+    // This deliberately allows an empty page with hasMore: true, meaning
+    // "nothing new *yet*, ask again shortly" — a generation that outran the
+    // wait above is the common case, and answering false there would end the
+    // feed permanently. The client backs off before retrying (see Explore).
+    const hasMore = recoPage.remaining > 0 || poolResult.canGrow;
 
     // One boolean covers two independent signals (curated-vs-personalized
     // destination pool, and templated-vs-AI blurb copy) — a deliberate
@@ -95,7 +97,7 @@ router.post('/', async (req, res) => {
     res.json({
       recommendations,
       fallback: usedStaticPool || !isGeminiConfigured(),
-      hasMore: offset + recoPage.items.length < recoPage.total || stillFilling,
+      hasMore,
       poolKey: resolvedPoolKey,
     });
   } catch (err) {

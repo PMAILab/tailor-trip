@@ -115,7 +115,12 @@ export interface RecoOptions {
   tradeOff: TradeOffMode;
   pool: Destination[];
   limit?: number;
-  offset?: number;
+  /** Destination ids the caller already has on screen. Pagination works by
+   *  excluding these rather than by a numeric offset, because the pool both
+   *  grows (AI top-ups appended mid-scroll) and is re-scored and re-sorted on
+   *  every request — a numeric offset into a list that reorders underneath it
+   *  silently skips some destinations and serves others twice. */
+  excludeIds?: string[];
   /** When set (a "near me" request with known coordinates), results are
    *  sorted strictly by distance from these coordinates instead of match
    *  score — the user asked to see nearby places in nearby order, not just
@@ -125,7 +130,10 @@ export interface RecoOptions {
 
 export interface RecoPage {
   items: Omit<TripRecommendation, 'aiReason'>[];
-  total: number; // count after mood/budget filtering, before offset/limit — lets the caller compute hasMore
+  /** Matching destinations the caller hasn't seen yet and this page didn't
+   *  return — i.e. what's still servable from the current pool without
+   *  growing it. Lets the caller compute hasMore. */
+  remaining: number;
 }
 
 /** Build one destination's recommendation (no AI copy — added by the route). */
@@ -156,7 +164,7 @@ export function buildBaseReco(
  *  item is built defensively: one malformed entry is dropped, not fatal to
  *  the whole page.
  *
- *  Paginates the fully scored and sorted list (via `offset`/`limit`), not
+ *  Paginates the fully scored and sorted list (via `excludeIds`/`limit`), not
  *  the raw pool — so page 2 continues in match-quality order instead of
  *  showing an arbitrary slice of unranked candidates. */
 export function buildBaseRecommendations({
@@ -165,7 +173,7 @@ export function buildBaseRecommendations({
   tradeOff,
   pool: sourcePool,
   limit = 9,
-  offset = 0,
+  excludeIds,
   userCoords,
 }: RecoOptions): RecoPage {
   const pool = mood ? sourcePool.filter((d) => d.moods.includes(mood)) : sourcePool;
@@ -196,5 +204,12 @@ export function buildBaseRecommendations({
   } else {
     filtered.sort((a, b) => b.matchScore - a.matchScore || a.costBreakdown.total - b.costBreakdown.total);
   }
-  return { items: filtered.slice(offset, offset + limit), total: filtered.length };
+
+  // Drop what the caller already has, then take from the top of what's left:
+  // a destination the pool gained since the last request slots into its
+  // rightful scored position instead of being skipped past by a stale offset.
+  const seen = excludeIds && excludeIds.length > 0 ? new Set(excludeIds) : null;
+  const unseen = seen ? filtered.filter((r) => !seen.has(r.destination.id)) : filtered;
+
+  return { items: unseen.slice(0, limit), remaining: Math.max(0, unseen.length - limit) };
 }

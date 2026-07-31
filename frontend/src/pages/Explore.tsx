@@ -26,6 +26,14 @@ const BACKGROUND_RETRY_INTERVAL_MS = 5000;
 const BACKGROUND_RETRY_TIMEOUT_MS = 15000;
 const MAX_BACKGROUND_RETRIES = 20; // ~100s total, comfortably past a Render free-tier cold start
 
+// "More places are being generated, but none are ready yet" is a normal
+// answer while scrolling past the initial batch. The sentinel is still on
+// screen at that point, so the observer would re-fire instantly — pause
+// before allowing the next attempt, and give up after a few fruitless ones
+// rather than polling a backend that clearly has nothing more to add.
+const EMPTY_PAGE_RETRY_MS = 4000;
+const MAX_EMPTY_PAGES = 3;
+
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, ms);
@@ -51,11 +59,13 @@ export default function Explore() {
   } = useApp();
   const [recs, setRecs] = useState<TripRecommendation[]>([]);
   const [status, setStatus] = useState<Status>('loading');
-  const [page, setPage] = useState(0);
   const [poolKey, setPoolKey] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  // Consecutive "nothing new yet" responses, reset by any page that actually
+  // adds cards — see EMPTY_PAGE_RETRY_MS.
+  const emptyPagesRef = useRef(0);
   // Cancels a still-running background retry loop when a newer search
   // supersedes it (mood/budget/location changed, or the component unmounts)
   // — otherwise a slow-to-arrive stale response could clobber fresh results.
@@ -81,12 +91,13 @@ export default function Explore() {
     }
   }, []);
 
-  // A new mood/budget/tradeOff/location combination is a fresh search —
-  // reset to page 0 rather than append onto results from a different query.
+  // A new mood/budget/tradeOff/location combination is a fresh search — start
+  // from an empty seen-list rather than appending onto a different query's
+  // results.
   const load = useCallback(async () => {
     retryAbortRef.current?.abort();
-    setPage(0);
     setHasMore(false);
+    emptyPagesRef.current = 0;
 
     const params: RecommendationsParams = {
       mood: selectedMood,
@@ -95,7 +106,6 @@ export default function Explore() {
       scope: locationScope,
       lat: coords?.lat,
       lng: coords?.lng,
-      page: 0,
     };
 
     // Skeleton cards only show up if the local fallback itself is empty
@@ -131,7 +141,6 @@ export default function Explore() {
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore || status !== 'done') return;
     setLoadingMore(true);
-    const nextPage = page + 1;
     try {
       const res = await getRecommendations({
         mood: selectedMood,
@@ -140,12 +149,33 @@ export default function Explore() {
         scope: locationScope,
         lat: coords?.lat,
         lng: coords?.lng,
-        page: nextPage,
+        seenIds: recs.map((r) => r.destination.id),
         poolKey,
       });
-      setRecs((prev) => [...prev, ...res.recommendations]);
-      setPage(nextPage);
-      setHasMore(Boolean(res.hasMore));
+      // The key can change mid-scroll: a session that started on the static
+      // placeholder gets upgraded to the real AI pool once generation
+      // finishes, and the response carries the new key.
+      if (res.poolKey) setPoolKey(res.poolKey);
+
+      // The server already excludes what we sent, but this list also keys the
+      // rendered grid — dedupe locally too so a repeat can never become a
+      // duplicate React key.
+      const seen = new Set(recs.map((r) => r.destination.id));
+      const added = res.recommendations.filter((r) => !seen.has(r.destination.id));
+
+      if (added.length > 0) {
+        emptyPagesRef.current = 0;
+        setRecs((prev) => [...prev, ...added]);
+        setHasMore(Boolean(res.hasMore));
+      } else if (res.hasMore && emptyPagesRef.current < MAX_EMPTY_PAGES) {
+        // More places are still being generated server-side. Hold the
+        // sentinel and wait before retrying — `loadingMore` is still set
+        // here, so this doubles as the guard against an instant re-fire.
+        emptyPagesRef.current += 1;
+        await new Promise((resolve) => setTimeout(resolve, EMPTY_PAGE_RETRY_MS));
+      } else {
+        setHasMore(false);
+      }
     } catch {
       // A failed "load more" shouldn't wipe the results already on screen —
       // just stop offering more so the user can retry by scrolling again later.
@@ -153,7 +183,7 @@ export default function Explore() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, status, page, poolKey, selectedMood, selectedBudget, tradeOff, locationScope, coords]);
+  }, [loadingMore, hasMore, status, recs, poolKey, selectedMood, selectedBudget, tradeOff, locationScope, coords]);
 
   useEffect(() => {
     const el = sentinelRef.current;

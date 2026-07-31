@@ -129,7 +129,11 @@ export interface RecommendationsParams {
   scope?: 'near' | 'country';
   lat?: number;
   lng?: number;
-  page?: number;
+  /** Destination ids already on screen — the server returns the best matches
+   *  that aren't in this list. Pagination is by exclusion rather than page
+   *  number because the server-side pool grows as you scroll and is re-ranked
+   *  on every request, so a page number would skip and repeat destinations. */
+  seenIds?: string[];
   poolKey?: string;
 }
 
@@ -166,6 +170,7 @@ export function buildLocalRecommendations(params: RecommendationsParams): TripRe
     tradeOff: params.tradeOff,
     pool: DESTINATIONS,
     limit: 9,
+    excludeIds: params.seenIds,
     userCoords,
   });
   // No live AI blurb available offline — the destination's own hand-authored
